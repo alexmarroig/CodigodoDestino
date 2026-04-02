@@ -1,9 +1,28 @@
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
+
 pydantic>=2.8.0
+typing-extensions>=4.12.2
+
+# Astro
 pyswisseph>=2.10.3.2
+
+# Database
 sqlalchemy>=2.0.32
 psycopg[binary]>=3.2.1
 alembic>=1.13.2
+
+# Cache
 redis>=5.0.8
+
+# Utils
+python-dotenv>=1.0.1
+
+# Performance (opcional mas recomendado)
+orjson>=3.10.7
+
+# HTTP (para futura integração LLM)
+httpx>=0.27.0
+
+# Testing
 pytest>=8.3.2
