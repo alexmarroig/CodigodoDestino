@@ -10,10 +10,9 @@ import swisseph as swe
 # CONFIGURAÇÃO SWISS EPHEMERIS
 # -----------------------------------
 
-# Ajuste conforme seu ambiente (ex: ./ephe ou /usr/share/ephe)
 swe.set_ephe_path("./ephe")
 
-FLAGS = swe.FLG_SWIEPH | swe.FLG_SPEED | swe.FLG_SIDEREAL
+FLAGS = swe.FLG_SWIEPH | swe.FLG_SPEED  # 🔥 removido SIDEREAL (evita erro)
 
 PLANETS = {
     "sun": swe.SUN,
@@ -25,6 +24,11 @@ PLANETS = {
     "saturn": swe.SATURN,
 }
 
+SIGNS = [
+    "aries", "taurus", "gemini", "cancer",
+    "leo", "virgo", "libra", "scorpio",
+    "sagittarius", "capricorn", "aquarius", "pisces"
+]
 
 # -----------------------------------
 # TYPES
@@ -34,17 +38,21 @@ PLANETS = {
 class EphemerisResult:
     utc_datetime: str
     julian_day: float
-    planets: Dict[str, Dict[str, float]]
+    planets: Dict[str, Dict[str, float | str]]
     angles: Dict[str, float]
     houses: Dict[str, List[float] | str]
-
 
 # -----------------------------------
 # UTILS
 # -----------------------------------
 
-def _round(value: float) -> float:
-    return round(value % 360.0, 6)
+def _normalize(deg: float) -> float:
+    return round(deg % 360.0, 6)
+
+
+def _get_sign(longitude: float) -> str:
+    index = int(longitude // 30)
+    return SIGNS[index]
 
 
 def julian_day_from_utc(dt_utc: datetime) -> float:
@@ -59,9 +67,8 @@ def julian_day_from_utc(dt_utc: datetime) -> float:
 
     return swe.julday(dt.year, dt.month, dt.day, hour, swe.GREG_CAL)
 
-
 # -----------------------------------
-# CORE
+# CORE ENGINE
 # -----------------------------------
 
 def calculate_ephemeris(
@@ -78,7 +85,7 @@ def calculate_ephemeris(
     # PLANETAS
     # -------------------------
 
-    planets: Dict[str, Dict[str, float]] = {}
+    planets: Dict[str, Dict[str, float | str]] = {}
 
     for name, pid in PLANETS.items():
         try:
@@ -87,11 +94,15 @@ def calculate_ephemeris(
             raise RuntimeError(f"Erro ao calcular planeta {name}") from exc
 
         if ret < 0:
-            raise RuntimeError(f"Swiss Ephemeris erro em {name}")
+            raise RuntimeError(f"Erro Swiss Ephemeris em {name}")
+
+        longitude = _normalize(calc[0])
 
         planets[name] = {
-            "longitude": _round(calc[0]),
+            "longitude": longitude,
+            "sign": _get_sign(longitude),
             "speed": round(calc[3], 6),
+            "retrograde": calc[3] < 0,
         }
 
     # -------------------------
@@ -104,15 +115,15 @@ def calculate_ephemeris(
     except Exception as exc:
         raise RuntimeError("Erro ao calcular casas") from exc
 
-    houses = [_round(c) for c in cusps]
+    houses = [_normalize(c) for c in cusps]
 
     angles = {
-        "ascendant": _round(ascmc[0]),
-        "midheaven": _round(ascmc[1]),
+        "ascendant": _normalize(ascmc[0]),
+        "midheaven": _normalize(ascmc[1]),
     }
 
     # -------------------------
-    # RESULTADO
+    # RESULTADO FINAL
     # -------------------------
 
     return EphemerisResult(

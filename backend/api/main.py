@@ -74,13 +74,21 @@ def mapa(
 
     logger.info(
         "mapa_request_received",
-        extra={"request_id": request_id, "input": payload.model_dump()},
+        extra={
+            "request_id": request_id,
+            "payload": payload.model_dump(),
+        },
     )
 
     try:
-        # 🔥 GARANTIR DETERMINISMO
-        reference_date = payload.reference_date or datetime.now(timezone.utc).date()
+        # 🔥 determinismo (fundamental pra previsões reproduzíveis)
+        reference_date = (
+            payload.reference_date
+            if payload.reference_date
+            else datetime.now(timezone.utc).date()
+        )
 
+        # 🔥 chamada da pipeline (camada de domínio)
         result = run_pipeline(
             payload=payload.model_dump(),
             db=db,
@@ -97,6 +105,7 @@ def mapa(
             "mapa_processing_failed",
             extra={"request_id": request_id},
         )
+
         raise AppError(
             code="pipeline_error",
             message="Erro ao processar mapa",

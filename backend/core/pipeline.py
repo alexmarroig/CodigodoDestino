@@ -15,12 +15,12 @@ from core.cache import CacheClient
 from core.config import settings
 from db.models import MapRequest
 from engine.events import generate_events
-from engine.narrative import build_narrative_prompt
+from engine.narrative import build_narrative_prompt, generate_narrative_with_cache
 from numerologia.core import life_path_number, personal_year
 
 
 # -----------------------------------
-# HASH UTILS
+# HASH
 # -----------------------------------
 
 def _hash(data: Any) -> str:
@@ -33,10 +33,7 @@ def _hash(data: Any) -> str:
 # -----------------------------------
 
 def build_cache_key(payload: Dict[str, Any]) -> str:
-    enriched = {
-        **payload,
-        "engine_version": settings.engine_version,
-    }
+    enriched = {**payload, "engine_version": settings.engine_version}
     return f"mapa:{_hash(enriched)}"
 
 
@@ -46,9 +43,6 @@ def build_ephemeris_key(utc_datetime: str, lat: float, lon: float, house_system:
 
 
 def build_interpretation_key(events: list[dict]) -> str:
-    """
-    🔥 HASH SEMÂNTICO (ESSENCIAL)
-    """
     signature = [
         {
             "drivers": e["drivers"],
@@ -61,7 +55,7 @@ def build_interpretation_key(events: list[dict]) -> str:
 
 
 # -----------------------------------
-# CORE
+# CORE PIPELINE
 # -----------------------------------
 
 def run_pipeline(
@@ -72,16 +66,11 @@ def run_pipeline(
     reference_date: date,
 ) -> Dict[str, Any]:
 
-    # -------------------------
-    # NORMALIZAÇÃO
-    # -------------------------
-
     payload = {**payload, "reference_date": reference_date.isoformat()}
-
     cache_key = build_cache_key(payload)
 
     # -------------------------
-    # CACHE COMPLETO
+    # CACHE FULL
     # -------------------------
 
     cached_full = cache.get_cache(cache_key)
@@ -96,7 +85,7 @@ def run_pipeline(
     utc_dt = local_to_utc(payload["date"], payload["time"], payload["timezone"])
 
     # -------------------------
-    # EPHEMERIS CACHE
+    # EPHEMERIS
     # -------------------------
 
     ephemeris_key = build_ephemeris_key(
@@ -124,10 +113,14 @@ def run_pipeline(
             "houses": eph.houses,
         }
 
-        cache.set_cache(ephemeris_key, cached_ephemeris)
+        cache.set_cache(
+            ephemeris_key,
+            cached_ephemeris,
+            settings.ephemeris_cache_ttl,
+        )
 
     # -------------------------
-    # ASPECTOS
+    # POSIÇÕES
     # -------------------------
 
     positions = {
@@ -135,7 +128,14 @@ def run_pipeline(
         for planet, data in cached_ephemeris["planets"].items()
     }
 
-    aspects = calculate_aspects(positions, payload.get("orb_degrees", 6))
+    # -------------------------
+    # ASPECTOS
+    # -------------------------
+
+    aspects = calculate_aspects(
+        positions,
+        payload.get("orb_degrees", 6),
+    )
 
     # -------------------------
     # SIGNOS
@@ -168,17 +168,28 @@ def run_pipeline(
     )
 
     # -------------------------
-    # 🔥 INTERPRETATION CACHE
+    # PROMPT CACHE
     # -------------------------
 
     interpretation_key = build_interpretation_key(events)
+
     cached_prompt = cache.get_cache(interpretation_key)
 
     if cached_prompt:
         prompt = cached_prompt
     else:
         prompt = build_narrative_prompt(events)
-        cache.set_cache(interpretation_key, prompt)
+        cache.set_cache(
+            interpretation_key,
+            prompt,
+            settings.llm_cache_ttl,
+        )
+
+    # -------------------------
+    # IA (NARRATIVA FINAL)
+    # -------------------------
+
+    narrative = generate_narrative_with_cache(prompt, cache)
 
     # -------------------------
     # RESPONSE
@@ -200,7 +211,7 @@ def run_pipeline(
             "numerology": numerology,
         },
         "events": events,
-        "narrative_prompt": prompt,
+        "narrative": narrative,
         "metadata": {
             "engine_version": settings.engine_version,
             "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -208,7 +219,7 @@ def run_pipeline(
     }
 
     # -------------------------
-    # DB SAVE
+    # SAVE DB
     # -------------------------
 
     db_obj = MapRequest(
@@ -225,6 +236,10 @@ def run_pipeline(
     # CACHE FINAL
     # -------------------------
 
-    cache.set_cache(cache_key, response)
+    cache.set_cache(
+        cache_key,
+        response,
+        settings.map_cache_ttl,
+    )
 
     return response

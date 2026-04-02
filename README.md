@@ -8,9 +8,13 @@ SaaS de previsões baseado em astrologia e numerologia com engine determinístic
 
 - Backend: FastAPI + PostgreSQL + Redis
 - Frontend: Next.js + Tailwind
-- Engine: Astrologia + Numerologia + Regras simbólicas
+- Engine:
+  - Astrologia (Swiss Ephemeris)
+  - Numerologia
+  - Regras simbólicas
 - Cache: Redis
 - Migrations: Alembic
+- IA: OpenRouter (fallback automático)
 
 ---
 

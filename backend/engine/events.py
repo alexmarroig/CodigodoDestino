@@ -13,7 +13,7 @@ KNOWLEDGE_BASE_PATH = Path(__file__).with_name("knowledge_base.json")
 
 
 # -----------------------------------
-# LOAD KNOWLEDGE BASE
+# LOAD
 # -----------------------------------
 
 def load_knowledge_base() -> Dict[str, Dict]:
@@ -44,7 +44,7 @@ def _event_id(key: str, reference_date: date) -> str:
 
 
 # -----------------------------------
-# CORE
+# 🔥 CORE ENGINE
 # -----------------------------------
 
 def generate_events(
@@ -57,86 +57,63 @@ def generate_events(
     kb = load_knowledge_base()
     events: List[Dict] = []
 
-    ref_date_str = reference_date.isoformat()
+    ref_date = reference_date.isoformat()
 
-    # -------------------------
-    # VENUS SQUARE MARS
-    # -------------------------
+    # =================================
+    # REGRAS ASTROLÓGICAS
+    # =================================
+
+    rules_triggered = []
 
     if _has_aspect(aspects, "venus", "mars", "square"):
-        key = "venus_square_mars"
-        weight = kb.get(key, {}).get("weight", 0.7)
-
-        score = min(1.0, weight + 0.1)
-
-        events.append(
-            {
-                "id": _event_id(key, reference_date),
-                "event": "Fase de tensão e ajustes em vínculos afetivos",
-                "category": kb.get(key, {}).get("category", "relacionamento"),
-                "intensity": _intensity(score),
-                "score": round(score, 2),
-                "drivers": [key],
-                "time_window": {
-                    "start": ref_date_str,
-                    "end": ref_date_str,
-                },
-            }
-        )
-
-    # -------------------------
-    # SUN OPP SATURN
-    # -------------------------
+        rules_triggered.append("venus_square_mars")
 
     if _has_aspect(aspects, "sun", "saturn", "opposition"):
-        key = "sun_opposition_saturn"
-        weight = kb.get(key, {}).get("weight", 0.6)
+        rules_triggered.append("sun_opposition_saturn")
 
-        score = weight
-
-        events.append(
-            {
-                "id": _event_id(key, reference_date),
-                "event": "Pressão por resultados e amadurecimento de metas",
-                "category": kb.get(key, {}).get("category", "carreira"),
-                "intensity": _intensity(score),
-                "score": round(score, 2),
-                "drivers": [key],
-                "time_window": {
-                    "start": ref_date_str,
-                    "end": ref_date_str,
-                },
-            }
-        )
-
-    # -------------------------
-    # NUMEROLOGIA
-    # -------------------------
+    # =================================
+    # REGRAS NUMEROLÓGICAS
+    # =================================
 
     if numerology.get("life_path_number") == 1:
-        key = "life_path_1"
-        weight = kb.get(key, {}).get("weight", 0.6)
+        rules_triggered.append("life_path_1")
 
-        score = weight
+    # =================================
+    # 🔥 COMPOSIÇÃO DE EVENTOS
+    # =================================
+
+    for key in rules_triggered:
+        rule = kb.get(key, {})
+
+        base_weight = rule.get("weight", 0.5)
+
+        # 🔥 AUMENTO DE INTENSIDADE POR COMBINAÇÃO
+        combo_bonus = 0.1 * (len(rules_triggered) - 1)
+
+        score = min(1.0, base_weight + combo_bonus)
 
         events.append(
             {
                 "id": _event_id(key, reference_date),
-                "event": "Momento favorável para autonomia e liderança",
-                "category": kb.get(key, {}).get("category", "desenvolvimento_pessoal"),
+                "event": rule.get("event", key),
+                "category": rule.get("category", "geral"),
                 "intensity": _intensity(score),
                 "score": round(score, 2),
                 "drivers": [key],
                 "time_window": {
-                    "start": ref_date_str,
-                    "end": ref_date_str,
+                    "start": ref_date,
+                    "end": ref_date,
+                },
+                # 🔥 NOVO (IMPORTANTE PRA IA)
+                "context": {
+                    "total_active_rules": len(rules_triggered),
                 },
             }
         )
 
-    # -------------------------
+    # =================================
     # FALLBACK
-    # -------------------------
+    # =================================
 
     if not events:
         key = "baseline"
@@ -150,8 +127,11 @@ def generate_events(
                 "score": 0.3,
                 "drivers": [key],
                 "time_window": {
-                    "start": ref_date_str,
-                    "end": ref_date_str,
+                    "start": ref_date,
+                    "end": ref_date,
+                },
+                "context": {
+                    "total_active_rules": 0,
                 },
             }
         )

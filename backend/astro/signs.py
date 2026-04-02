@@ -21,6 +21,11 @@ SIGNS_PT = [
     "Peixes",
 ]
 
+SIGNS_EN = [
+    "aries", "taurus", "gemini", "cancer",
+    "leo", "virgo", "libra", "scorpio",
+    "sagittarius", "capricorn", "aquarius", "pisces"
+]
 
 # -----------------------------------
 # TYPES
@@ -28,11 +33,15 @@ SIGNS_PT = [
 
 @dataclass(frozen=True)
 class SignPosition:
-    input_longitude: float
-    sign: str
-    sign_index: int
-    degree_in_sign: float
-    formatted: str
+    longitude: float              # 0–360 normalizado
+    sign: str                     # "Áries"
+    sign_en: str                  # "aries"
+    sign_index: int               # 0–11
+    degree_in_sign: float         # 0–30
+    degree: int
+    minute: int
+    second: int
+    formatted: str                # "Áries 10°23'15\""
 
 
 # -----------------------------------
@@ -40,35 +49,30 @@ class SignPosition:
 # -----------------------------------
 
 def normalize_longitude(longitude: float) -> float:
-    """
-    Normaliza longitude para faixa 0–360.
-    """
     lon = longitude % 360.0
 
-    # evita 360 virar índice inválido
-    if lon == 360.0:
+    # proteção extrema contra 360 exato
+    if lon >= 360.0:
         lon = 0.0
 
-    return lon
+    return round(lon, 6)
 
 
 def _deg_to_dms(degree_float: float) -> tuple[int, int, int]:
-    """
-    Converte grau decimal em grau/minuto/segundo sem overflow.
-    """
     degree_int = int(degree_float)
-    minutes_float = (degree_float - degree_int) * 60
 
+    minutes_float = (degree_float - degree_int) * 60
     minute = int(minutes_float)
+
     seconds_float = (minutes_float - minute) * 60
     second = int(seconds_float)
 
-    # evita overflow tipo 29°59'60"
-    if second == 60:
+    # correções de overflow
+    if second >= 60:
         second = 0
         minute += 1
 
-    if minute == 60:
+    if minute >= 60:
         minute = 0
         degree_int += 1
 
@@ -83,14 +87,18 @@ def longitude_to_sign(longitude: float) -> SignPosition:
     lon = normalize_longitude(longitude)
 
     sign_index = int(lon // 30.0)
-    degree_in_sign = lon - sign_index * 30.0
+    degree_in_sign = lon - (sign_index * 30.0)
 
     deg, minute, second = _deg_to_dms(degree_in_sign)
 
     return SignPosition(
-        input_longitude=round(lon, 6),
+        longitude=lon,
         sign=SIGNS_PT[sign_index],
+        sign_en=SIGNS_EN[sign_index],
         sign_index=sign_index,
         degree_in_sign=round(degree_in_sign, 6),
+        degree=deg,
+        minute=minute,
+        second=second,
         formatted=f"{SIGNS_PT[sign_index]} {deg}°{minute:02d}'{second:02d}\"",
     )
