@@ -1,88 +1,111 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from fastapi import FastAPI
-from pydantic import BaseModel, Field
+from fastapi import Depends, FastAPI, Request
+from sqlalchemy.orm import Session
 
-from astro.aspects import calculate_aspects
-from astro.ephemeris import calculate_ephemeris
-from astro.signs import longitude_to_sign
-from astro.time import convert_with_metadata, local_to_utc
-from engine.events import generate_events
-from engine.narrative import build_narrative_prompt
-from numerologia.core import life_path_number, personal_year
+from api.schemas import MapaRequest
+from core.cache import CacheClient
+from core.config import settings
+from core.errors import AppError, app_error_handler, unhandled_error_handler
+from core.logging import configure_logging
+from core.pipeline import run_pipeline
+from db.session import get_cache_client, get_db
 
-app = FastAPI(title="Astrologia SaaS", version="1.0.0")
+# -----------------------------------
+# CONFIGURAÇÃO INICIAL
+# -----------------------------------
+
+configure_logging()
+logger = logging.getLogger(__name__)
+
+app = FastAPI(
+    title=settings.app_name,
+    version=settings.app_version,
+)
+
+# -----------------------------------
+# HANDLERS DE ERRO
+# -----------------------------------
+
+app.add_exception_handler(AppError, app_error_handler)
+app.add_exception_handler(Exception, unhandled_error_handler)
+
+# -----------------------------------
+# MIDDLEWARE REQUEST ID
+# -----------------------------------
+
+@app.middleware("http")
+async def request_context_middleware(request: Request, call_next):
+    request_id = request.headers.get("x-request-id", str(uuid4()))
+    request.state.request_id = request_id
+
+    response = await call_next(request)
+    response.headers["x-request-id"] = request_id
+
+    return response
 
 
-class MapaRequest(BaseModel):
-    date: str = Field(..., examples=["1990-08-15"])
-    time: str = Field(..., examples=["14:30:00"])
-    timezone: str = Field(..., examples=["America/Sao_Paulo"])
-    city: str = Field(..., examples=["São Paulo"])
-    lat: float = Field(..., ge=-90, le=90)
-    lon: float = Field(..., ge=-180, le=180)
-    orb_degrees: float = Field(default=6, ge=0, le=12)
-    house_system: str = Field(default="P", min_length=1, max_length=1)
-
+# -----------------------------------
+# HEALTH CHECK
+# -----------------------------------
 
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+# -----------------------------------
+# ENDPOINT PRINCIPAL
+# -----------------------------------
+
 @app.post("/mapa")
-def mapa(payload: MapaRequest) -> dict:
-    utc_meta = convert_with_metadata(payload.date, payload.time, payload.timezone)
-    dt_utc = local_to_utc(payload.date, payload.time, payload.timezone)
+def mapa(
+    payload: MapaRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    cache: CacheClient = Depends(get_cache_client),
+) -> dict:
 
-    eph = calculate_ephemeris(dt_utc, payload.lat, payload.lon, payload.house_system)
-    planet_positions = {name: data["longitude"] for name, data in eph.planets.items()}
-    aspects = calculate_aspects(planet_positions, payload.orb_degrees)
+    request_id = request.state.request_id
 
-    signs = {
-        name: longitude_to_sign(data["longitude"]).__dict__
-        for name, data in eph.planets.items()
-    }
-    house_signs = [longitude_to_sign(cusp).__dict__ for cusp in eph.houses["cusps"]]
-    angle_signs = {
-        "ascendant": longitude_to_sign(eph.angles["ascendant"]).__dict__,
-        "midheaven": longitude_to_sign(eph.angles["midheaven"]).__dict__,
-    }
+    logger.info(
+        "mapa_request_received",
+        extra={"request_id": request_id, "input": payload.model_dump()},
+    )
 
-    numerology = {
-        "birth_date": payload.date,
-        "life_path_number": life_path_number(payload.date),
-        "personal_year": personal_year(payload.date),
-    }
+    try:
+        # 🔥 GARANTIR DETERMINISMO
+        reference_date = payload.reference_date or datetime.now(timezone.utc).date()
 
-    events = generate_events(aspects, eph.houses["cusps"], numerology)
-    narrative = build_narrative_prompt(events)
+        result = run_pipeline(
+            payload=payload.model_dump(),
+            db=db,
+            cache=cache,
+            request_id=request_id,
+            reference_date=reference_date,
+        )
 
-    return {
-        "request_id": str(uuid4()),
-        "input": payload.model_dump(),
-        "computed": {
-            "utc": utc_meta.__dict__,
-            "astrology": {
-                "utc_datetime": eph.utc_datetime,
-                "julian_day": eph.julian_day,
-                "planets": eph.planets,
-                "angles": eph.angles,
-                "houses": eph.houses,
-                "signs": signs,
-                "house_signs": house_signs,
-                "angle_signs": angle_signs,
-            },
-            "aspects": {"orb_degrees": payload.orb_degrees, "aspects": aspects},
-            "numerology": numerology,
-        },
-        "events": events,
-        "narrative": {"text": "", "prompt_payload": narrative},
-        "metadata": {
-            "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            "version": "v1",
-        },
-    }
+    except AppError:
+        raise
+
+    except Exception as exc:
+        logger.exception(
+            "mapa_processing_failed",
+            extra={"request_id": request_id},
+        )
+        raise AppError(
+            code="pipeline_error",
+            message="Erro ao processar mapa",
+            status_code=500,
+        ) from exc
+
+    logger.info(
+        "mapa_processing_success",
+        extra={"request_id": request_id},
+    )
+
+    return result

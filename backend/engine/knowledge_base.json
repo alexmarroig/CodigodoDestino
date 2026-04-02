@@ -1,0 +1,26 @@
+{
+  "venus_square_mars": {
+    "category": "relacionamento",
+    "weight": 0.7,
+    "interpretations": [
+      "tensão emocional",
+      "conflito entre desejo e afeto"
+    ]
+  },
+  "sun_opposition_saturn": {
+    "category": "carreira",
+    "weight": 0.65,
+    "interpretations": [
+      "pressão por resultados",
+      "cobrança de responsabilidades"
+    ]
+  },
+  "life_path_1": {
+    "category": "desenvolvimento_pessoal",
+    "weight": 0.45,
+    "interpretations": [
+      "protagonismo",
+      "início de ciclo independente"
+    ]
+  }
+}
