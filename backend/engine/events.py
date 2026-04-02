@@ -2,15 +2,29 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from datetime import date
+from typing import List, Dict
+
+# -----------------------------------
+# CONFIG
+# -----------------------------------
 
 KNOWLEDGE_BASE_PATH = Path(__file__).with_name("knowledge_base.json")
 
 
-def load_knowledge_base() -> dict[str, dict]:
+# -----------------------------------
+# LOAD
+# -----------------------------------
+
+def load_knowledge_base() -> Dict[str, Dict]:
     return json.loads(KNOWLEDGE_BASE_PATH.read_text(encoding="utf-8"))
 
 
-def _find_aspect(aspects: list[dict], a: str, b: str, aspect: str) -> bool:
+# -----------------------------------
+# UTILS
+# -----------------------------------
+
+def _has_aspect(aspects: List[Dict], a: str, b: str, aspect: str) -> bool:
     for item in aspects:
         if {item["planet_a"], item["planet_b"]} == {a, b} and item["aspect"] == aspect:
             return True
@@ -25,66 +39,100 @@ def _intensity(score: float) -> str:
     return "low"
 
 
+def _event_id(key: str, reference_date: date) -> str:
+    return f"{key}_{reference_date.isoformat()}"
+
+
+# -----------------------------------
+# 🔥 CORE ENGINE
+# -----------------------------------
+
 def generate_events(
-    aspects: list[dict],
-    houses: list[float],
-    numerology: dict,
-    reference_date: str,
-) -> list[dict]:
+    aspects: List[Dict],
+    houses: List[float],
+    numerology: Dict,
+    reference_date: date,
+) -> List[Dict]:
+
     kb = load_knowledge_base()
-    events: list[dict] = []
+    events: List[Dict] = []
 
-    if _find_aspect(aspects, "venus", "mars", "square"):
-        key = "venus_square_mars"
-        score = min(1.0, kb[key]["weight"] + (0.1 if len(houses) == 12 else 0.0))
-        events.append(
-            {
-                "event": "Fase de tensão e ajustes em vínculos afetivos",
-                "category": kb[key]["category"],
-                "intensity": _intensity(score),
-                "score": round(score, 2),
-                "drivers": [key],
-                "time_window": {"start": reference_date, "end": reference_date},
-            }
-        )
+    ref_date = reference_date.isoformat()
 
-    if _find_aspect(aspects, "sun", "saturn", "opposition"):
-        key = "sun_opposition_saturn"
-        score = kb[key]["weight"]
-        events.append(
-            {
-                "event": "Pressão por resultados e amadurecimento de metas",
-                "category": kb[key]["category"],
-                "intensity": _intensity(score),
-                "score": round(score, 2),
-                "drivers": [key],
-                "time_window": {"start": reference_date, "end": reference_date},
-            }
-        )
+    # =================================
+    # REGRAS ASTROLÓGICAS
+    # =================================
+
+    rules_triggered = []
+
+    if _has_aspect(aspects, "venus", "mars", "square"):
+        rules_triggered.append("venus_square_mars")
+
+    if _has_aspect(aspects, "sun", "saturn", "opposition"):
+        rules_triggered.append("sun_opposition_saturn")
+
+    # =================================
+    # REGRAS NUMEROLÓGICAS
+    # =================================
 
     if numerology.get("life_path_number") == 1:
-        key = "life_path_1"
-        score = kb[key]["weight"]
+        rules_triggered.append("life_path_1")
+
+    # =================================
+    # 🔥 COMPOSIÇÃO DE EVENTOS
+    # =================================
+
+    for key in rules_triggered:
+        rule = kb.get(key, {})
+
+        base_weight = rule.get("weight", 0.5)
+
+        # 🔥 AUMENTO DE INTENSIDADE POR COMBINAÇÃO
+        combo_bonus = 0.1 * (len(rules_triggered) - 1)
+
+        score = min(1.0, base_weight + combo_bonus)
+
         events.append(
             {
-                "event": "Momento favorável para autonomia e liderança",
-                "category": kb[key]["category"],
+                "id": _event_id(key, reference_date),
+                "event": rule.get("event", key),
+                "category": rule.get("category", "geral"),
                 "intensity": _intensity(score),
                 "score": round(score, 2),
                 "drivers": [key],
-                "time_window": {"start": reference_date, "end": reference_date},
+                "time_window": {
+                    "start": ref_date,
+                    "end": ref_date,
+                },
+                # 🔥 NOVO (IMPORTANTE PRA IA)
+                "context": {
+                    "total_active_rules": len(rules_triggered),
+                },
             }
         )
 
+    # =================================
+    # FALLBACK
+    # =================================
+
     if not events:
+        key = "baseline"
+
         events.append(
             {
+                "id": _event_id(key, reference_date),
                 "event": "Ciclo estável com avanços graduais",
                 "category": "geral",
                 "intensity": "low",
                 "score": 0.3,
-                "drivers": ["baseline"],
-                "time_window": {"start": reference_date, "end": reference_date},
+                "drivers": [key],
+                "time_window": {
+                    "start": ref_date,
+                    "end": ref_date,
+                },
+                "context": {
+                    "total_active_rules": 0,
+                },
             }
         )
 

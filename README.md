@@ -1,41 +1,36 @@
 # CodigodoDestino
 
-## Backend Setup
+SaaS de previsões baseado em astrologia e numerologia com engine determinística + IA.
+
+---
+
+# 🧠 Arquitetura
+
+- Backend: FastAPI + PostgreSQL + Redis
+- Frontend: Next.js + Tailwind
+- Engine:
+  - Astrologia (Swiss Ephemeris)
+  - Numerologia
+  - Regras simbólicas
+- Cache: Redis
+- Migrations: Alembic
+- IA: OpenRouter (fallback automático)
+
+---
+
+# ⚙️ Setup Backend
 
 ```bash
 cd backend
+
+# criar ambiente virtual
 python -m venv .venv
+
+# ativar (Mac/Linux)
 source .venv/bin/activate
+
+# ativar (Windows)
+.venv\Scripts\activate
+
+# instalar dependências
 pip install -r requirements.txt
-```
-
-## Environment
-
-```bash
-export DATABASE_URL='postgresql+psycopg://postgres:postgres@localhost:5432/astrologia'
-export REDIS_URL='redis://localhost:6379/0'
-export OPENROUTER_API_KEY='your_key'
-export OPENROUTER_MODEL='deepseek/deepseek-chat-v3.1'
-export OPENROUTER_FALLBACK_MODEL='deepseek/deepseek-v3.2'
-```
-
-## Database Migration
-
-```bash
-cd backend
-alembic upgrade head
-```
-
-## Run API
-
-```bash
-cd backend
-uvicorn api.main:app --reload
-```
-
-## Run Tests
-
-```bash
-cd backend
-pytest -q
-```
