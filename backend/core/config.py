@@ -2,12 +2,23 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from dotenv import load_dotenv
 
+# -----------------------------------
+# LOAD ENV (.env)
+# -----------------------------------
+
+load_dotenv()
+
+
+# -----------------------------------
+# HELPERS
+# -----------------------------------
 
 def _get_env(key: str, default: str | None = None, required: bool = False) -> str:
     value = os.getenv(key, default)
 
-    if required and (value is None or value == ""):
+    if required and (value is None or value.strip() == ""):
         raise RuntimeError(f"Variável de ambiente obrigatória não definida: {key}")
 
     return value
@@ -25,6 +36,19 @@ def _get_int(key: str, default: int) -> int:
         raise RuntimeError(f"Variável {key} deve ser um inteiro") from exc
 
 
+def _get_bool(key: str, default: bool = False) -> bool:
+    value = os.getenv(key)
+
+    if value is None:
+        return default
+
+    return value.lower() in ("1", "true", "yes", "on")
+
+
+# -----------------------------------
+# SETTINGS
+# -----------------------------------
+
 @dataclass(frozen=True)
 class Settings:
     # -----------------------------------
@@ -35,6 +59,7 @@ class Settings:
     app_version: str = _get_env("APP_VERSION", "2.1.0")
     engine_version: str = _get_env("ENGINE_VERSION", "engine-2.1.0")
     environment: str = _get_env("ENVIRONMENT", "development")
+    debug: bool = _get_bool("DEBUG", True)
 
     # -----------------------------------
     # INFRA
@@ -51,12 +76,12 @@ class Settings:
     )
 
     # -----------------------------------
-    # CACHE (em segundos)
+    # CACHE (segundos)
     # -----------------------------------
 
-    map_cache_ttl: int = _get_int("MAP_CACHE_TTL", 60 * 60 * 24 * 30)       # 30 dias
+    map_cache_ttl: int = _get_int("MAP_CACHE_TTL", 60 * 60 * 24 * 30)        # 30 dias
     ephemeris_cache_ttl: int = _get_int("EPHEMERIS_CACHE_TTL", 60 * 60 * 24 * 180)  # 6 meses
-    llm_cache_ttl: int = _get_int("LLM_CACHE_TTL", 60 * 60 * 24 * 7)         # 7 dias
+    llm_cache_ttl: int = _get_int("LLM_CACHE_TTL", 60 * 60 * 24 * 7)          # 7 dias
 
     # -----------------------------------
     # OPENROUTER (IA)
@@ -90,5 +115,8 @@ class Settings:
     )
 
 
-# instância única (singleton simples)
+# -----------------------------------
+# SINGLETON
+# -----------------------------------
+
 settings = Settings()
