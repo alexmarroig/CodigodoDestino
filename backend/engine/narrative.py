@@ -181,6 +181,10 @@ def build_narrative_prompt(
     event_summary: dict[str, Any],
     confidence: dict[str, Any],
     uncertainties: list[dict[str, Any]],
+    forecast_360: dict[str, Any],
+    timeline: dict[str, Any],
+    life_episodes: list[dict[str, Any]],
+    turning_points: list[dict[str, Any]],
 ) -> dict[str, Any]:
     plan = _build_narrative_plan(analysis, events, confidence, uncertainties)
     prompt_payload = {
@@ -191,8 +195,22 @@ def build_narrative_prompt(
             "profections": analysis.get("profections", {}),
             "solar_return": analysis.get("solar_return", {}),
         },
+        "forecast_360": forecast_360,
+        "timeline": timeline,
+        "life_episodes": life_episodes[:6],
+        "turning_points": turning_points[:6],
         "domains": plan.selected_domains,
+        "domain_coverage": analysis.get("domain_analysis", {}).get("coverage", []),
         "events": plan.selected_events,
+        "special_forecasts": {
+            "relationship": analysis.get("relationship_analysis", {}),
+            "financial": analysis.get("financial_analysis", {}),
+            "purpose": analysis.get("purpose_analysis", {}),
+            "rule_hits": analysis.get("rule_hits", [])[:12],
+            "exact_timing": analysis.get("exact_timing", {}),
+            "life_events": analysis.get("life_events", []),
+            "life_story": analysis.get("life_story", {}),
+        },
         "uncertainties": uncertainties[:3],
         "techniques_used": analysis.get("techniques_used", []),
         "numerology": analysis.get("numerology", {}),
@@ -209,11 +227,13 @@ def build_narrative_prompt(
         json_dumps_text(prompt_payload, sort_keys=True),
         "",
         "FORMATO OBRIGATORIO:",
-        "1. Resumo do periodo em 1 paragrafo.",
-        "2. Tema do ano explicando por que esse tema foi ativado.",
-        "3. Dominios principais com causa -> efeito -> orientacao pratica.",
-        "4. Incertezas e o que observar.",
-        "5. Nota curta de responsabilidade.",
+        "1. Visao geral dos proximos meses em 1 paragrafo.",
+        "2. Curto prazo, proximos 12 meses e tendencia mais longa.",
+        "3. Relacionamentos, amizades, familia, carreira, saude, viagens, transicoes e financas.",
+        "4. Proposito e direcao de vida.",
+        "5. Datas de virada e o que tende a acontecer em cada uma.",
+        "6. Incertezas e o que observar.",
+        "7. Nota curta de responsabilidade.",
     ]
 
     return {
@@ -281,21 +301,91 @@ def _build_local_fallback(
     confidence: dict[str, Any],
     uncertainties: list[dict[str, Any]],
     plan: dict[str, Any],
+    forecast_360: dict[str, Any],
     *,
     reason_override: str | None = None,
 ) -> dict[str, Any]:
-    if not events:
+    area_forecasts = list(forecast_360.get("areas_da_vida", []))
+    turning_points = list(forecast_360.get("turning_points", []))
+    purpose_forecast = dict(forecast_360.get("proposito") or {})
+
+    if area_forecasts:
+        ranked_areas = sorted(
+            area_forecasts,
+            key=lambda item: (item.get("status") != "active", -float(item.get("probability", 0.0))),
+        )
+        lead_areas = ranked_areas[:4]
+        paragraphs = [str(forecast_360.get("summary", "")).strip()]
+
+        for area in lead_areas:
+            short_term = dict(area.get("short_term") or {})
+            mid_term = dict(area.get("mid_term") or {})
+            peak_dates = list(area.get("peak_dates") or [])
+            peak_clause = f" Pico em {peak_dates[0]}." if peak_dates else ""
+            paragraphs.append(
+                (
+                    f"{area['label']}: {area.get('what_tends_to_happen', area.get('label', 'Este tema entra em movimento.'))} "
+                    f"No curto prazo, {short_term.get('summary', 'o tema se movimenta sem definicao total.')} "
+                    f"Nos proximos meses, {mid_term.get('summary', 'o eixo segue em desenvolvimento.')}{peak_clause}"
+                ).strip()
+            )
+
+        if purpose_forecast:
+            paragraphs.append(
+                (
+                    f"Proposito e direcao: {purpose_forecast.get('summary', 'Seu eixo de sentido esta em reorganizacao.')} "
+                    f"{purpose_forecast.get('current_focus', '')} {purpose_forecast.get('long_arc', '')}"
+                ).strip()
+            )
+
+        if turning_points:
+            turning_text = "; ".join(
+                f"{item['date']} - {item['headline']}" for item in turning_points[:4]
+            )
+            paragraphs.append(f"Datas de virada: {turning_text}.")
+
+        if uncertainties:
+            paragraphs.append(
+                f"Ponto de cautela: {uncertainties[0]['message']} Observe repeticao antes de tratar isso como fato fechado."
+            )
+
+        paragraphs.append(f"Confianca geral: {confidence.get('level', 'low')}.")
+        text = "\n\n".join(part for part in paragraphs if part)
+    elif not events:
         text = (
             "O periodo nao mostra convergencia suficiente para previsoes fortes. "
             "Neste momento, a leitura mais honesta e observar repeticao de temas antes de concluir direcao."
         )
     else:
         lead_event = events[0]
-        lead_domain = domains[0]["domain_label"] if domains else lead_event["domain"]
+        lead_domain = domains[0]["domain_label"] if domains else str(
+            lead_event.get("domain") or lead_event.get("category") or "um dominio central"
+        )
+        lead_title = str(
+            lead_event.get("title")
+            or lead_event.get("event")
+            or lead_event.get("description")
+            or "O tema principal entrou em movimento."
+        )
+        lead_effect = str(
+            lead_event.get("effect")
+            or lead_event.get("summary")
+            or "isso tende a gerar ajustes praticos e observaveis."
+        )
+        lead_recommendations = [
+            str(item)
+            for item in list(lead_event.get("recommendations") or [])[:2]
+        ]
+        lead_window = dict(lead_event.get("time_window") or {})
+        peak_date = lead_window.get("peak") or lead_window.get("start")
         secondary_clause = ""
         if len(events) > 1:
             secondary_titles = ", ".join(event["title"].lower() for event in events[1:3])
             secondary_clause = f" Ao fundo, tambem aparecem {secondary_titles}."
+
+        timing_clause = ""
+        if peak_date:
+            timing_clause = f" A data-pico mais sensivel deste eixo cai em torno de {peak_date}."
 
         uncertainty_clause = ""
         if uncertainties:
@@ -307,9 +397,9 @@ def _build_local_fallback(
         text = (
             f"O eixo mais ativo agora e {lead_domain}, com intensidade "
             f"{INTENSITY_LABELS.get(str(lead_event['intensity']), str(lead_event['intensity']))}. "
-            f"{lead_event['description']} Isso tende a se manifestar como {lead_event['effect'].lower()} "
-            f"As orientacoes mais uteis agora sao: {' '.join(lead_event.get('recommendations', [])[:2])}."
-            f"{secondary_clause}{uncertainty_clause} "
+            f"{lead_title} Isso tende a se manifestar como {lead_effect.lower()} "
+            f"As orientacoes mais uteis agora sao: {' '.join(lead_recommendations) or 'agir com criterio, observar repeticao e evitar conclusoes precipitadas.'}."
+            f"{timing_clause}{secondary_clause}{uncertainty_clause} "
             f"O nivel de confianca geral desta leitura esta em {confidence.get('level', 'low')}."
         )
 
@@ -339,7 +429,14 @@ def generate_narrative_with_cache(
 
     if plan["strategy"] != "llm":
         return {
-            **_build_local_fallback(events, domains, confidence, uncertainties, plan),
+            **_build_local_fallback(
+                events,
+                domains,
+                confidence,
+                uncertainties,
+                plan,
+                prompt_data["analysis_digest"].get("forecast_360", {}),
+            ),
             "cached": False,
         }
 
@@ -351,6 +448,7 @@ def generate_narrative_with_cache(
                 confidence,
                 uncertainties,
                 plan,
+                prompt_data["analysis_digest"].get("forecast_360", {}),
                 reason_override="openrouter-disabled",
             ),
             "cached": False,
@@ -399,6 +497,7 @@ def generate_narrative_with_cache(
                     confidence,
                     uncertainties,
                     plan,
+                    prompt_data["analysis_digest"].get("forecast_360", {}),
                     reason_override="openrouter-failed-fallback",
                 ),
                 "cached": False,

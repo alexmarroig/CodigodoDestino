@@ -150,6 +150,176 @@ export type AnalysisConfidence = {
   profile_quality: 'A' | 'B' | 'C'
 }
 
+export type DomainCoverageEntry = {
+  key: string
+  label: string
+  status: 'active' | 'watch' | 'quiet'
+  probability: number
+  intensity: Intensity
+  time_window: TimeWindow | null
+  signals: string[]
+  domains_considered: string[]
+  dominant_domain: string | null
+  summary: string
+  confidence: 'high' | 'medium' | 'low'
+}
+
+export type ForecastHorizon = {
+  status: 'active' | 'watch' | 'quiet'
+  summary: string
+  period_label: string | null
+  peak_date: string | null
+  probability: number
+}
+
+export type ForecastTimelineHit = {
+  period: string
+  status: 'active' | 'watch' | 'quiet'
+  probability: number
+  summary: string
+  peak_date?: string | null
+}
+
+export type LifeEventWindow = {
+  start: string
+  peak: string
+  end: string
+  duration_days: number
+  precision: string
+}
+
+export type LifeEvent = {
+  type: string
+  label: string
+  area_key: string
+  window: LifeEventWindow
+  date: string
+  intensity: Intensity
+  strength: number
+  cause: string
+  summary: string
+  transits: ExactTimedEvent[]
+}
+
+export type ForecastSpecialFocus = {
+  key?: string
+  summary: string
+  advice?: string
+  why_now?: string
+  signals?: string[]
+  peak_dates?: string[]
+  current_theme?: string
+  marriage_probability?: number
+  bonding_probability?: number
+  breakup_probability?: number
+  tension_probability?: number
+  growth_probability?: number
+  restriction_probability?: number
+  restructure_probability?: number
+  volatility_probability?: number
+  exact_hits?: ExactTimedEvent[]
+  critical_periods?: ExactCriticalPeriod[]
+  life_events?: LifeEvent[]
+}
+
+export type ExactTimedEvent = {
+  type: string
+  domain: string
+  area_key?: string
+  planet_a: string
+  planet_b: string
+  aspect: string
+  label: string
+  date: string
+  orb: number
+  weight: number
+  applying: boolean
+  intensity: Intensity
+  time_window: TimeWindow
+}
+
+export type ExactCriticalPeriod = {
+  month: string
+  intensity: 'high' | 'medium'
+  total_weight: number
+  headline: string
+  events: ExactTimedEvent[]
+}
+
+export type ForecastAreaEntry = {
+  key: string
+  label: string
+  status: 'active' | 'watch' | 'quiet'
+  probability: number
+  confidence: 'high' | 'medium' | 'low'
+  short_term: ForecastHorizon
+  mid_term: ForecastHorizon
+  long_term: ForecastHorizon
+  peak_dates: string[]
+  what_tends_to_happen: string
+  why_now: string
+  advice: string
+  signals: string[]
+  counter_signals: string[]
+  special_focus?: ForecastSpecialFocus | null
+  timeline_hits: ForecastTimelineHit[]
+}
+
+export type ForecastHouseEntry = {
+  house: number
+  label: string
+  domains: string[]
+  status: 'active' | 'watch' | 'quiet'
+  probability: number
+  confidence: 'high' | 'medium' | 'low'
+  short_term: ForecastHorizon
+  mid_term: ForecastHorizon
+  long_term: ForecastHorizon
+  timeline_hits: ForecastTimelineHit[]
+  peak_dates: string[]
+  what_tends_to_happen: string
+  signals: string[]
+}
+
+export type TimelinePeriodEntry = {
+  period_key: string
+  label: string
+  granularity: 'month' | 'quarter'
+  horizon: 'short' | 'mid' | 'long'
+  start: string
+  end: string
+  headline: string
+}
+
+export type LifeEpisode = {
+  id: string
+  title: string
+  domain: string
+  start: string
+  end: string
+  peak: string | null
+  arc: string
+  summary: string
+  key_dates: string[]
+}
+
+export type TurningPoint = {
+  date: string
+  domain: string
+  label: string
+  probability: number
+  headline: string
+  summary: string
+}
+
+export type PurposeForecast = {
+  summary: string
+  current_focus: string
+  long_arc: string
+  focus_domains: string[]
+  evidence: string[]
+}
+
 export type MapaResponse = {
   request_id: string
   input: MapaRequest & { reference_date: string }
@@ -228,9 +398,13 @@ export type MapaResponse = {
       age_years: number
       aspects: AspectData[]
     }
+    relationship_analysis?: ForecastSpecialFocus
+    financial_analysis?: ForecastSpecialFocus
+    purpose_analysis?: PurposeForecast
     techniques_used: string[]
     domain_analysis?: {
       domains: DomainAnalysisEntry[]
+      coverage?: DomainCoverageEntry[]
       uncertainties: Uncertainty[]
       confidence: AnalysisConfidence
     }
@@ -249,6 +423,30 @@ export type MapaResponse = {
     average_score: number
     highest_priority: number
   }
+  forecast_360?: {
+    summary: string
+    areas_da_vida: ForecastAreaEntry[]
+    casas: ForecastHouseEntry[]
+    proposito?: PurposeForecast
+    critical_periods?: ExactCriticalPeriod[]
+    life_events?: LifeEvent[]
+    timelines: {
+      short_term: string
+      mid_term: string
+      long_term: string
+    }
+    key_dates: string[]
+  }
+  timeline?: {
+    periods: TimelinePeriodEntry[]
+  }
+  life_episodes?: LifeEpisode[]
+  turning_points?: TurningPoint[]
+  exact_timing?: {
+    timed_events: ExactTimedEvent[]
+    critical_periods: ExactCriticalPeriod[]
+  }
+  life_events?: LifeEvent[]
   narrative: {
     text: string
     model: string

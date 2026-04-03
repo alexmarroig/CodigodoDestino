@@ -117,6 +117,28 @@ def test_domain_analysis_tracks_uncertainty_when_not_enough_convergence() -> Non
     )
 
 
+def test_domain_analysis_returns_requested_coverage_slots() -> None:
+    analysis = _analysis_fixture()
+    domain_bundle = build_domain_analysis(analysis)
+
+    coverage = {item["key"]: item for item in domain_bundle["coverage"]}
+
+    assert set(coverage) >= {
+        "relacionamento",
+        "amizades",
+        "familia",
+        "carreira",
+        "saude",
+        "viagens",
+        "transicoes",
+        "financas",
+    }
+    assert coverage["carreira"]["status"] == "active"
+    assert coverage["carreira"]["time_window"]["peak"] == "2026-07-02"
+    assert coverage["amizades"]["status"] == "quiet"
+    assert coverage["financas"]["status"] in {"quiet", "watch", "active"}
+
+
 def test_event_summary_counts_categories() -> None:
     analysis = _analysis_fixture()
     events = generate_events(analysis, reference_date=__import__("datetime").date(2026, 4, 2))

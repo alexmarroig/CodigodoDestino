@@ -18,9 +18,14 @@ from core.errors import AppError
 from core.serialization import stable_hash
 from db.models import MapRequest
 from db.session import SessionLocal, initialize_database
+from engine.adaptive_learning_engine import get_user_rule_overrides
 from engine.analysis import assess_profile_quality, build_multilayer_analysis, get_house_from_longitude
 from engine.events import build_domain_analysis, generate_events, summarize_events
+from engine.life_story_engine import build_life_story
 from engine.narrative import build_narrative_prompt, generate_narrative_with_cache
+from engine.question_engine import suggest_feedback_questions
+from engine.rules_engine import build_specialized_insights
+from engine.timeline import build_forecast_360, inject_exact_timing_into_forecast
 from numerologia.core import life_path_number, personal_year
 
 
@@ -72,6 +77,8 @@ def _hydrate_cached_response(cached_response: dict[str, Any], request_id: str, c
         "ephemeris": True,
         "redis_enabled": cache_enabled,
     }
+    cached_response.setdefault("feedback_questions", [])
+    cached_response.setdefault("user_rule_overrides", {})
     if isinstance(cached_response.get("narrative"), dict):
         cached_response["narrative"]["cached"] = True
     return cached_response
@@ -122,7 +129,11 @@ def _natal_planet_houses(planets: dict[str, dict[str, Any]], houses: list[float]
     }
 
 
-def _build_astrology_snapshot(payload: dict[str, Any], cache: CacheClient) -> tuple[dict[str, Any], bool]:
+def _build_astrology_snapshot(
+    payload: dict[str, Any],
+    cache: CacheClient,
+    db: Session,
+) -> tuple[dict[str, Any], bool]:
     profile_quality = assess_profile_quality(payload)
     utc_metadata = convert_with_metadata(
         payload["date"],
@@ -177,6 +188,10 @@ def _build_astrology_snapshot(payload: dict[str, Any], cache: CacheClient) -> tu
         "life_path_number": life_path_number(payload["date"]),
         "personal_year": personal_year(payload["date"], payload["reference_date"]),
     }
+    try:
+        user_rule_overrides = get_user_rule_overrides(db, payload.get("user_id"))
+    except Exception:
+        user_rule_overrides = {}
 
     analysis = build_multilayer_analysis(
         payload=payload,
@@ -187,11 +202,48 @@ def _build_astrology_snapshot(payload: dict[str, Any], cache: CacheClient) -> tu
         reference_date=date.fromisoformat(payload["reference_date"]),
         profile_quality=profile_quality,
     )
+    analysis["user_rule_overrides"] = user_rule_overrides
+    specialized = build_specialized_insights(
+        analysis,
+        payload=payload,
+        natal_ephemeris=cached_ephemeris,
+        include_exact_timing=True,
+    )
+    analysis["rule_hits"] = specialized["rule_hits"]
+    analysis["relationship_analysis"] = specialized["relationship"]
+    analysis["financial_analysis"] = specialized["financial"]
+    analysis["purpose_analysis"] = specialized["purpose"]
+    analysis["exact_timing"] = specialized["exact_timing"]
+    analysis["life_events"] = specialized["life_events"]
     domain_bundle = build_domain_analysis(analysis)
     events = generate_events(analysis, date.fromisoformat(payload["reference_date"]))
     event_summary = summarize_events(events)
+    forecast_360 = build_forecast_360(
+        payload=payload,
+        natal_ephemeris=cached_ephemeris,
+        natal_aspects=aspects,
+        profile_quality=profile_quality,
+        reference_date=date.fromisoformat(payload["reference_date"]),
+    )
+    forecast_360 = inject_exact_timing_into_forecast(
+        forecast_360,
+        specialized["exact_timing"],
+        specialized["life_events"],
+    )
+    life_story = build_life_story(
+        timeline_periods=forecast_360["timeline"]["periods"],
+        life_events=specialized["life_events"],
+        turning_points=forecast_360["turning_points"],
+    )
+    feedback_questions = suggest_feedback_questions(
+        life_events=specialized["life_events"],
+        turning_points=forecast_360["turning_points"],
+    )
 
     analysis["domain_analysis"] = domain_bundle
+    analysis["timeline"] = forecast_360["timeline"]
+    analysis["life_story"] = life_story
+    analysis["feedback_questions"] = feedback_questions
     computed_snapshot = {
         "utc": asdict(utc_metadata),
         "astrology": {
@@ -211,6 +263,20 @@ def _build_astrology_snapshot(payload: dict[str, Any], cache: CacheClient) -> tu
         "confidence": domain_bundle["confidence"],
         "uncertainties": domain_bundle["uncertainties"],
         "techniques_used": analysis["techniques_used"],
+        "user_rule_overrides": user_rule_overrides,
+        "feedback_questions": feedback_questions,
+        "forecast_360": forecast_360,
+        "timeline": forecast_360["timeline"],
+        "life_episodes": forecast_360["life_episodes"],
+        "turning_points": forecast_360["turning_points"],
+        "special_forecasts": {
+            "relationship": specialized["relationship"],
+            "financial": specialized["financial"],
+            "purpose": specialized["purpose"],
+        },
+        "exact_timing": specialized["exact_timing"],
+        "life_events": specialized["life_events"],
+        "life_story": life_story,
     }
     return computed_snapshot, ephemeris_cache_hit
 
@@ -218,15 +284,32 @@ def _build_astrology_snapshot(payload: dict[str, Any], cache: CacheClient) -> tu
 def _resolve_computed_snapshot(
     payload: dict[str, Any],
     cache: CacheClient,
+    db: Session,
 ) -> tuple[dict[str, Any], bool, bool]:
     computed_key = build_computed_cache_key(payload)
     cached_snapshot = cache.get_cache(computed_key)
     if cached_snapshot is not None:
+        cached_snapshot.setdefault("user_rule_overrides", {})
+        cached_snapshot.setdefault("feedback_questions", [])
+        if isinstance(cached_snapshot.get("analysis"), dict):
+            cached_snapshot["analysis"].setdefault("feedback_questions", [])
+            cached_snapshot["analysis"].setdefault("user_rule_overrides", {})
         return cached_snapshot, True, True
 
-    computed_snapshot, ephemeris_cache_hit = _build_astrology_snapshot(payload, cache)
+    computed_snapshot, ephemeris_cache_hit = _build_astrology_snapshot(payload, cache, db)
     cache.set_cache(computed_key, computed_snapshot, settings.computed_cache_ttl)
     return computed_snapshot, False, ephemeris_cache_hit
+
+
+def _build_cache_identity_payload(payload: dict[str, Any], db: Session) -> dict[str, Any]:
+    cache_payload = dict(payload)
+    try:
+        user_rule_overrides = get_user_rule_overrides(db, payload.get("user_id"))
+    except Exception:
+        user_rule_overrides = {}
+
+    cache_payload["user_rule_signature"] = sorted(user_rule_overrides.items())
+    return cache_payload
 
 
 def run_pipeline(
@@ -238,7 +321,8 @@ def run_pipeline(
 ) -> dict[str, Any]:
     started_at = perf_counter()
     normalized_payload = _normalize_payload(payload, reference_date)
-    response_cache_key = build_response_cache_key(normalized_payload)
+    cache_identity_payload = _build_cache_identity_payload(normalized_payload, db)
+    response_cache_key = build_response_cache_key(cache_identity_payload)
 
     cached_full = cache.get_cache(response_cache_key)
     if cached_full is not None:
@@ -250,8 +334,9 @@ def run_pipeline(
         return hydrated
 
     computed_snapshot, computed_cache_hit, ephemeris_cache_hit = _resolve_computed_snapshot(
-        normalized_payload,
+        cache_identity_payload,
         cache,
+        db,
     )
 
     prompt_data = build_narrative_prompt(
@@ -260,6 +345,10 @@ def run_pipeline(
         computed_snapshot["event_summary"],
         computed_snapshot["confidence"],
         computed_snapshot["uncertainties"],
+        computed_snapshot["forecast_360"],
+        computed_snapshot["timeline"],
+        computed_snapshot["life_episodes"],
+        computed_snapshot["turning_points"],
     )
     narrative = generate_narrative_with_cache(prompt_data, cache)
 
@@ -277,8 +366,17 @@ def run_pipeline(
         "confidence": computed_snapshot["confidence"],
         "uncertainties": computed_snapshot["uncertainties"],
         "techniques_used": computed_snapshot["techniques_used"],
+        "user_rule_overrides": computed_snapshot["user_rule_overrides"],
+        "feedback_questions": computed_snapshot["feedback_questions"],
         "events": computed_snapshot["events"],
         "event_summary": computed_snapshot["event_summary"],
+        "forecast_360": computed_snapshot["forecast_360"],
+        "timeline": computed_snapshot["timeline"],
+        "life_episodes": computed_snapshot["life_episodes"],
+        "turning_points": computed_snapshot["turning_points"],
+        "exact_timing": computed_snapshot["exact_timing"],
+        "life_events": computed_snapshot["life_events"],
+        "life_story": computed_snapshot["life_story"],
         "narrative": narrative,
         "metadata": {
             "engine_version": settings.engine_version,

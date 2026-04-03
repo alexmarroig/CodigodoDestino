@@ -155,6 +155,49 @@ DEFAULT_TONE_TEMPLATE = {
     },
 }
 
+REQUESTED_DOMAIN_COVERAGE = [
+    {
+        "key": "relacionamento",
+        "label": "relacionamentos",
+        "domains": ["relacionamentos", "criatividade_afetos"],
+    },
+    {
+        "key": "amizades",
+        "label": "amizades e rede",
+        "domains": ["amigos_rede"],
+    },
+    {
+        "key": "familia",
+        "label": "familia e lar",
+        "domains": ["familia_lar"],
+    },
+    {
+        "key": "carreira",
+        "label": "carreira e status",
+        "domains": ["carreira_status"],
+    },
+    {
+        "key": "saude",
+        "label": "saude e vulnerabilidade",
+        "domains": ["saude_rotina"],
+    },
+    {
+        "key": "viagens",
+        "label": "viagens, expansao e estudos",
+        "domains": ["expansao_sentido", "comunicacao"],
+    },
+    {
+        "key": "transicoes",
+        "label": "transicoes e viradas",
+        "domains": ["identidade", "crises_recursos", "psicologico_espiritual"],
+    },
+    {
+        "key": "financas",
+        "label": "financas e recursos",
+        "domains": ["financeiro", "crises_recursos"],
+    },
+]
+
 
 def _parse_iso_date(value: str) -> date:
     return datetime.fromisoformat(value).date()
@@ -211,6 +254,97 @@ def _domain_conflict(supportive_weight: float, challenging_weight: float) -> boo
     if supportive_weight == 0 or challenging_weight == 0:
         return False
     return abs(supportive_weight - challenging_weight) <= 0.35
+
+
+def _merge_windows(entries: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not entries:
+        return None
+
+    starts = [_parse_iso_date(entry["time_window"]["start"]) for entry in entries]
+    ends = [_parse_iso_date(entry["time_window"]["end"]) for entry in entries]
+    strongest = max(entries, key=lambda item: float(item["probability"]))
+    start = min(starts)
+    end = max(ends)
+    peak = strongest["time_window"].get("peak") or strongest["time_window"]["start"]
+
+    return {
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "peak": peak,
+        "duration_days": max(1, (end - start).days + 1),
+        "precision": "mixed" if (end - start).days >= 30 else "day",
+    }
+
+
+def _coverage_status(entries: list[dict[str, Any]]) -> str:
+    if not entries:
+        return "quiet"
+    if any(bool(entry["converged"]) for entry in entries):
+        return "active"
+    return "watch"
+
+
+def _coverage_summary(label: str, entries: list[dict[str, Any]]) -> str:
+    if not entries:
+        return f"{label.capitalize()} sem convergencia forte nesta janela."
+
+    strongest = max(entries, key=lambda item: float(item["probability"]))
+    peak = strongest["time_window"].get("peak") or strongest["time_window"]["start"]
+    if strongest["converged"]:
+        tone = {
+            "supportive": "mais favoravel",
+            "challenging": "mais exigente",
+            "mixed": "mista",
+        }.get(strongest["tone"], "ativa")
+        return (
+            f"{label.capitalize()} entra em fase {tone}, com pico em {peak} "
+            f"e probabilidade {int(round(float(strongest['probability']) * 100))}%."
+        )
+
+    return (
+        f"{label.capitalize()} mostra sinais parciais, ainda sem convergencia total. "
+        f"Vale observar principalmente a janela em torno de {peak}."
+    )
+
+
+def _build_requested_domain_coverage(domain_analysis: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_domain = {entry["domain"]: entry for entry in domain_analysis}
+    coverage: list[dict[str, Any]] = []
+
+    for item in REQUESTED_DOMAIN_COVERAGE:
+        matched = [by_domain[domain] for domain in item["domains"] if domain in by_domain]
+        merged_window = _merge_windows(matched)
+        strongest = max(matched, key=lambda entry: float(entry["probability"])) if matched else None
+
+        coverage.append(
+            {
+                "key": item["key"],
+                "label": item["label"],
+                "status": _coverage_status(matched),
+                "probability": round(
+                    max((float(entry["probability"]) for entry in matched), default=0.0),
+                    2,
+                ),
+                "intensity": strongest["intensity"] if strongest else "low",
+                "time_window": merged_window,
+                "signals": _top_labels(
+                    [signal for entry in matched for signal in entry["signals"]],
+                    limit=4,
+                ),
+                "domains_considered": item["domains"],
+                "dominant_domain": strongest["domain"] if strongest else None,
+                "summary": _coverage_summary(item["label"], matched),
+                "confidence": (
+                    "high"
+                    if strongest and strongest["converged"]
+                    else "medium"
+                    if matched
+                    else "low"
+                ),
+            }
+        )
+
+    return coverage
 
 
 def build_domain_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
@@ -329,6 +463,7 @@ def build_domain_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "domains": domain_analysis,
+        "coverage": _build_requested_domain_coverage(domain_analysis),
         "uncertainties": uncertainties,
         "confidence": {
             "level": confidence_level,

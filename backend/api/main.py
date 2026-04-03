@@ -10,10 +10,12 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
-from api.schemas import HoraryRequest, MapaRequest
+from api.schemas import FeedbackEventRequest, HoraryRequest, LifeEventRequest, MapaRequest
 from core.cache import CacheClient
 from core.config import settings
 from core.errors import AppError, app_error_handler, unhandled_error_handler
+from core.feedback_events import save_feedback_event
+from core.life_events import save_life_event
 from core.logging import configure_logging
 from core.pipeline import run_pipeline
 from db.session import get_cache_client, get_db, initialize_database
@@ -137,6 +139,80 @@ def horaria(
     result["request_id"] = request_id
     logger.info(
         "horaria_processing_success",
+        extra={"request_id": request_id},
+    )
+    return result
+
+
+@app.post("/life-event")
+def life_event(
+    payload: LifeEventRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict:
+    request_id = request.state.request_id
+    payload_data = payload.model_dump(mode="json", exclude_none=True)
+
+    logger.info(
+        "life_event_received",
+        extra={"request_id": request_id},
+    )
+
+    try:
+        result = save_life_event(payload_data, db)
+    except AppError:
+        raise
+    except Exception as exc:
+        logger.exception(
+            "life_event_failed",
+            extra={"request_id": request_id},
+        )
+        raise AppError(
+            code="life_event_error",
+            message="Unexpected error while processing /life-event.",
+            status_code=500,
+        ) from exc
+
+    result["request_id"] = request_id
+    logger.info(
+        "life_event_success",
+        extra={"request_id": request_id},
+    )
+    return result
+
+
+@app.post("/feedback-event")
+def feedback_event(
+    payload: FeedbackEventRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict:
+    request_id = request.state.request_id
+    payload_data = payload.model_dump(mode="json", exclude_none=True)
+
+    logger.info(
+        "feedback_event_received",
+        extra={"request_id": request_id},
+    )
+
+    try:
+        result = save_feedback_event(payload_data, db)
+    except AppError:
+        raise
+    except Exception as exc:
+        logger.exception(
+            "feedback_event_failed",
+            extra={"request_id": request_id},
+        )
+        raise AppError(
+            code="feedback_event_error",
+            message="Unexpected error while processing /feedback-event.",
+            status_code=500,
+        ) from exc
+
+    result["request_id"] = request_id
+    logger.info(
+        "feedback_event_success",
         extra={"request_id": request_id},
     )
     return result

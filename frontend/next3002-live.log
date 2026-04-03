@@ -1,0 +1,46 @@
+
+> astrologia-frontend@1.0.0 predev
+> node -e "require('fs').rmSync('.next',{ recursive: true, force: true })"
+
+
+> astrologia-frontend@1.0.0 dev
+> next dev --port 3002
+
+  ▲ Next.js 14.2.5
+  - Local:        http://localhost:3002
+
+ ✓ Starting...
+ ✓ Ready in 1661ms
+ ○ Compiling / ...
+ ✓ Compiled / in 5.6s (1283 modules)
+ GET / 200 in 5877ms
+ GET / 200 in 125ms
+ ✓ Compiled in 587ms (642 modules)
+ ✓ Compiled in 386ms (1265 modules)
+ ✓ Compiled in 713ms (642 modules)
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 934ms (1254 modules)
+ GET /_next/static/css/app/layout.css?v=1775191105130 404 in 1100ms
+ GET / 200 in 90ms
+ GET /_next/static/css/app/layout.css?v=1775191114433 404 in 55ms
+ GET /_next/static/chunks/main-app.js?v=1775191114433 404 in 60ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 57ms
+ GET /_next/static/chunks/app/page.js 404 in 56ms
+ GET /_next/static/chunks/app/not-found.js 404 in 54ms
+ GET / 200 in 75ms
+ GET /_next/static/css/app/layout.css?v=1775191117397 404 in 38ms
+ GET /_next/static/chunks/app/page.js 404 in 58ms
+ GET /_next/static/chunks/main-app.js?v=1775191117397 404 in 68ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 63ms
+ GET /_next/static/chunks/app/not-found.js 404 in 60ms
+ ✓ Compiled in 614ms (1268 modules)
+ GET / 200 in 116ms
+ ○ Compiling /horaria ...
+ ✓ Compiled /horaria in 1261ms (1259 modules)
+ ✓ Compiled in 600ms (645 modules)
+ ✓ Compiled in 960ms (1268 modules)
+ ○ Compiling /horaria ...
+ ✓ Compiled /horaria in 767ms (628 modules)
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 3.7s (1483 modules)
+ ✓ Compiled in 275ms (828 modules)

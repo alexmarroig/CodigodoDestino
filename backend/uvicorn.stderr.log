@@ -28,3 +28,13 @@ INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
 {"timestamp": "2026-04-03T03:33:59.375160Z", "level": "INFO", "message": "HTTP Request: POST https://openrouter.ai/api/v1/chat/completions \"HTTP/1.1 401 Unauthorized\"", "logger": "httpx"}
 {"timestamp": "2026-04-03T03:33:59.395218Z", "level": "INFO", "message": "HTTP Request: POST https://openrouter.ai/api/v1/chat/completions \"HTTP/1.1 401 Unauthorized\"", "logger": "httpx"}
 {"timestamp": "2026-04-03T03:33:59.404575Z", "level": "INFO", "message": "mapa_processing_success", "logger": "api.main", "request_id": "ae683154-70b2-401f-b5cf-92df16a211ec"}
+{"timestamp": "2026-04-03T03:52:11.113914Z", "level": "WARNING", "message": "redis_unavailable_falling_back_to_null_cache", "logger": "db.session"}
+{"timestamp": "2026-04-03T03:52:11.119928Z", "level": "INFO", "message": "mapa_request_received", "logger": "api.main", "request_id": "11b1efb6-37d0-407d-af80-e303ed53c633"}
+{"timestamp": "2026-04-03T03:52:11.464146Z", "level": "INFO", "message": "HTTP Request: POST https://openrouter.ai/api/v1/chat/completions \"HTTP/1.1 401 Unauthorized\"", "logger": "httpx"}
+{"timestamp": "2026-04-03T03:52:11.495779Z", "level": "INFO", "message": "HTTP Request: POST https://openrouter.ai/api/v1/chat/completions \"HTTP/1.1 401 Unauthorized\"", "logger": "httpx"}
+{"timestamp": "2026-04-03T03:52:11.552572Z", "level": "INFO", "message": "mapa_processing_success", "logger": "api.main", "request_id": "11b1efb6-37d0-407d-af80-e303ed53c633"}
+{"timestamp": "2026-04-03T03:52:22.509987Z", "level": "WARNING", "message": "redis_unavailable_falling_back_to_null_cache", "logger": "db.session"}
+{"timestamp": "2026-04-03T03:52:22.514921Z", "level": "INFO", "message": "mapa_request_received", "logger": "api.main", "request_id": "ef215e31-2cc6-4fa2-9120-1f96b62a7d11"}
+{"timestamp": "2026-04-03T03:52:22.570980Z", "level": "INFO", "message": "HTTP Request: POST https://openrouter.ai/api/v1/chat/completions \"HTTP/1.1 401 Unauthorized\"", "logger": "httpx"}
+{"timestamp": "2026-04-03T03:52:22.587264Z", "level": "INFO", "message": "HTTP Request: POST https://openrouter.ai/api/v1/chat/completions \"HTTP/1.1 401 Unauthorized\"", "logger": "httpx"}
+{"timestamp": "2026-04-03T03:52:22.596268Z", "level": "INFO", "message": "mapa_processing_success", "logger": "api.main", "request_id": "ef215e31-2cc6-4fa2-9120-1f96b62a7d11"}

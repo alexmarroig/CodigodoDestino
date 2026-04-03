@@ -3,7 +3,17 @@
 import type { ReactNode } from 'react'
 import { motion } from 'framer-motion'
 
-import { DomainAnalysisEntry, MapaResponse, Uncertainty } from '@/types/mapa'
+import {
+  DomainAnalysisEntry,
+  DomainCoverageEntry,
+  ForecastAreaEntry,
+  ForecastHouseEntry,
+  LifeEpisode,
+  MapaResponse,
+  TimelinePeriodEntry,
+  TurningPoint,
+  Uncertainty,
+} from '@/types/mapa'
 
 type ResultsDashboardProps = {
   result: MapaResponse
@@ -35,8 +45,15 @@ export function ResultsDashboard({ result, onRestart }: ResultsDashboardProps) {
       profile_quality: quality.code,
     }
   const domains = result.analysis?.domain_analysis?.domains ?? []
+  const coverage = result.analysis?.domain_analysis?.coverage ?? []
   const uncertainties = result.uncertainties ?? result.analysis?.domain_analysis?.uncertainties ?? []
   const macroHouse = result.analysis?.profections?.activated_house
+  const forecast360 = result.forecast_360
+  const timelinePeriods = result.timeline?.periods ?? []
+  const lifeEpisodes = result.life_episodes ?? []
+  const turningPoints = result.turning_points ?? []
+  const lifeEvents = result.life_events ?? forecast360?.life_events ?? []
+  const purpose = forecast360?.proposito ?? result.analysis?.purpose_analysis
 
   return (
     <section id="reading-stage" className="space-y-10">
@@ -86,11 +103,71 @@ export function ResultsDashboard({ result, onRestart }: ResultsDashboardProps) {
         <UncertaintyPanel uncertainties={uncertainties} qualityAssumptions={quality.assumptions} />
       </section>
 
+      {forecast360 ? (
+        <>
+          <section className="space-y-5">
+            <div className="space-y-2">
+              <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Leitura 360</p>
+              <h3 className="text-3xl font-semibold sm:text-5xl">O ciclo inteiro, nao so um evento</h3>
+              <p className="max-w-3xl text-sm text-[var(--muted)] sm:text-base">{forecast360.summary}</p>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[1.12fr,0.88fr]">
+              <TimelinePanel periods={timelinePeriods} />
+              <TurningPointsPanel points={turningPoints} />
+            </div>
+          </section>
+
+          {lifeEvents.length ? <LifeEventsPanel events={lifeEvents} /> : null}
+
+          {purpose ? <PurposePanel purpose={purpose} /> : null}
+
+          <section className="space-y-5">
+            <div className="space-y-2">
+              <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Episodios</p>
+              <h3 className="text-3xl font-semibold sm:text-5xl">Capitulos que estao abrindo</h3>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              {lifeEpisodes.map((episode, index) => (
+                <EpisodeCard key={episode.id} episode={episode} index={index} />
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-5">
+            <div className="space-y-2">
+              <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Areas da vida</p>
+              <h3 className="text-3xl font-semibold sm:text-5xl">Curto prazo, ano e proximo capitulo</h3>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              {forecast360.areas_da_vida.map((area, index) => (
+                <AreaForecastCard key={area.key} area={area} index={index} />
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-5">
+            <div className="space-y-2">
+              <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Casa por casa</p>
+              <h3 className="text-3xl font-semibold sm:text-5xl">As 12 casas do seu ciclo</h3>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {forecast360.casas.map((house, index) => (
+                <HouseForecastCard key={house.house} house={house} index={index} />
+              ))}
+            </div>
+          </section>
+        </>
+      ) : null}
+
       <section className="space-y-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Convergencias</p>
-            <h3 className="text-3xl font-semibold sm:text-5xl">Dominios mais ativos</h3>
+            <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Panorama completo</p>
+            <h3 className="text-3xl font-semibold sm:text-5xl">Os temas da sua vida agora</h3>
           </div>
           <motion.button
             type="button"
@@ -101,6 +178,19 @@ export function ResultsDashboard({ result, onRestart }: ResultsDashboardProps) {
           >
             Fazer outra leitura
           </motion.button>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {coverage.map((item, index) => (
+            <CoverageCard key={item.key} item={item} index={index} />
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-5">
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Convergencias tecnicas</p>
+          <h3 className="text-3xl font-semibold sm:text-5xl">Onde os sinais batem mais forte</h3>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
@@ -195,6 +285,326 @@ export function ResultsDashboard({ result, onRestart }: ResultsDashboardProps) {
         </motion.section>
       </div>
     </section>
+  )
+}
+
+function TimelinePanel({ periods }: { periods: TimelinePeriodEntry[] }) {
+  const visible = periods.slice(0, 12)
+
+  return (
+    <section className="cosmic-shell rounded-[34px] px-6 py-6 sm:px-8">
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Linha do tempo</p>
+          <h3 className="text-2xl font-semibold sm:text-3xl">Mes a mes, onde a vida aperta</h3>
+        </div>
+
+        <div className="space-y-3">
+          {visible.map((period) => (
+            <div key={period.period_key} className="rounded-[24px] border border-[var(--line)] bg-white/5 px-4 py-4">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted-soft)]">{period.label}</p>
+              <p className="mt-2 text-sm text-[var(--fg)]">{period.headline}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function TurningPointsPanel({ points }: { points: TurningPoint[] }) {
+  return (
+    <section className="cosmic-shell rounded-[34px] px-6 py-6 sm:px-8">
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Pontos de virada</p>
+          <h3 className="text-2xl font-semibold sm:text-3xl">Datas que merecem atencao</h3>
+        </div>
+
+        <div className="space-y-3">
+          {points.length === 0 ? (
+            <p className="text-sm text-[var(--muted)]">Ainda nao apareceu uma data-pico dominante acima do ruido geral.</p>
+          ) : (
+            points.slice(0, 6).map((point) => (
+              <div key={`${point.domain}-${point.date}`} className="rounded-[24px] border border-[var(--line)] bg-white/5 px-4 py-4">
+                <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted-soft)]">
+                  {formatDate(point.date)} · {point.label}
+                </p>
+                <p className="mt-2 text-sm text-[var(--fg)]">{point.headline}</p>
+                <p className="mt-2 text-sm text-[var(--muted)]">{point.summary}</p>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function EpisodeCard({ episode, index }: { episode: LifeEpisode; index: number }) {
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.36, delay: 0.05 * index, ease: 'easeOut' }}
+      className="cosmic-shell rounded-[30px] px-6 py-6"
+    >
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <Badge tone="warm">{normalizeLabel(episode.domain)}</Badge>
+          {episode.peak ? <Badge tone="soft">Pico {formatDate(episode.peak)}</Badge> : null}
+        </div>
+
+        <div className="space-y-2">
+          <h4 className="text-2xl font-semibold text-[var(--fg)]">{episode.title}</h4>
+          <p className="text-sm text-[var(--muted)]">{episode.summary}</p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SoftCard label="Capitulo" value={`${episode.start} ate ${episode.end}`} />
+          <SoftCard label="Arco" value={episode.arc} />
+        </div>
+      </div>
+    </motion.article>
+  )
+}
+
+function AreaForecastCard({ area, index }: { area: ForecastAreaEntry; index: number }) {
+  const specialMetrics = buildAreaSpecialMetrics(area)
+  const exactHits = area.special_focus?.exact_hits ?? []
+  const lifeEvents = area.special_focus?.life_events ?? []
+
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.36, delay: 0.05 * index, ease: 'easeOut' }}
+      className="cosmic-shell rounded-[30px] px-6 py-6"
+    >
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <Badge tone={area.status === 'active' ? 'warm' : area.status === 'watch' ? 'soft' : 'muted'}>
+            {area.status === 'active' ? 'Ativo' : area.status === 'watch' ? 'Em observacao' : 'Silencioso'}
+          </Badge>
+          <Badge tone={area.confidence === 'high' ? 'warm' : area.confidence === 'medium' ? 'soft' : 'muted'}>
+            {Math.round(area.probability * 100)}%
+          </Badge>
+        </div>
+
+        <div className="space-y-2">
+          <h4 className="text-2xl font-semibold text-[var(--fg)]">{area.label}</h4>
+          <p className="text-sm text-[var(--muted)]">{area.what_tends_to_happen}</p>
+        </div>
+
+        {specialMetrics.length ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {specialMetrics.map((metric) => (
+              <SoftCard key={`${area.key}-${metric.label}`} label={metric.label} value={metric.value} />
+            ))}
+          </div>
+        ) : null}
+
+        <div className="grid gap-3">
+          <SoftCard label="Curto prazo" value={area.short_term.summary} />
+          <SoftCard label="Proximos 12 meses" value={area.mid_term.summary} />
+          <SoftCard label="Capitulo mais longo" value={area.long_term.summary} />
+        </div>
+
+        {area.special_focus?.why_now ? (
+          <p className="text-sm text-[var(--muted)]">
+            <span className="text-[var(--fg)]">Por que agora:</span> {area.special_focus.why_now}
+          </p>
+        ) : null}
+
+        {exactHits.length ? (
+          <div className="space-y-3">
+            <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted-soft)]">Datas mais exatas</p>
+            {exactHits.slice(0, 2).map((hit) => (
+              <div key={`${area.key}-${hit.type}-${hit.date}`} className="rounded-[24px] border border-[var(--line)] bg-white/5 px-4 py-4">
+                <p className="text-sm text-[var(--fg)]">
+                  {formatFullDate(hit.time_window.start)} ate {formatFullDate(hit.time_window.end)}
+                </p>
+                <p className="mt-2 text-sm text-[var(--muted)]">
+                  Pico em {formatFullDate(hit.time_window.peak ?? hit.date)} com {normalizeLabel(hit.label)}.
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {lifeEvents.length ? (
+          <div className="space-y-3">
+            <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted-soft)]">Eventos de vida</p>
+            {lifeEvents.slice(0, 2).map((event) => (
+              <div key={`${area.key}-${event.type}-${event.date}`} className="rounded-[24px] border border-[var(--line)] bg-white/5 px-4 py-4">
+                <p className="text-sm text-[var(--fg)]">{event.label}</p>
+                <p className="mt-2 text-sm text-[var(--muted)]">
+                  {formatFullDate(event.window.start)} ate {formatFullDate(event.window.end)}, com pico em{' '}
+                  {formatFullDate(event.window.peak)}.
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        <p className="text-sm text-[var(--muted)]">{area.advice}</p>
+      </div>
+    </motion.article>
+  )
+}
+
+function LifeEventsPanel({ events }: { events: MapaResponse['life_events'] }) {
+  return (
+    <section className="space-y-5">
+      <div className="space-y-2">
+        <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Eventos de vida</p>
+        <h3 className="text-3xl font-semibold sm:text-5xl">Janelas mais provaveis do ciclo</h3>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {events?.map((event, index) => (
+          <motion.article
+            key={`${event.type}-${event.date}`}
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.36, delay: 0.05 * index, ease: 'easeOut' }}
+            className="cosmic-shell rounded-[30px] px-6 py-6"
+          >
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <Badge tone={event.intensity === 'high' ? 'warm' : 'soft'}>{event.intensity}</Badge>
+                <Badge tone="muted">{normalizeLabel(event.area_key)}</Badge>
+                <Badge tone="soft">{event.strength} sinais</Badge>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-2xl font-semibold text-[var(--fg)]">{event.label}</h4>
+                <p className="text-sm text-[var(--muted)]">{event.summary}</p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <SoftCard
+                  label="Janela"
+                  value={`${formatFullDate(event.window.start)} ate ${formatFullDate(event.window.end)}`}
+                />
+                <SoftCard label="Pico" value={formatFullDate(event.window.peak)} />
+              </div>
+
+              <p className="text-sm text-[var(--muted)]">
+                <span className="text-[var(--fg)]">Causa principal:</span> {normalizeLabel(event.cause)}
+              </p>
+            </div>
+          </motion.article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function PurposePanel({ purpose }: { purpose: NonNullable<MapaResponse['forecast_360']>['proposito'] | NonNullable<MapaResponse['analysis']>['purpose_analysis'] }) {
+  return (
+    <section className="cosmic-shell rounded-[34px] px-6 py-6 sm:px-8">
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Proposito</p>
+          <h3 className="text-2xl font-semibold sm:text-3xl">Direcao mais profunda do ciclo</h3>
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-sm text-[var(--fg)]">{purpose?.summary}</p>
+          <p className="text-sm text-[var(--muted)]">{purpose?.current_focus}</p>
+          <p className="text-sm text-[var(--muted)]">{purpose?.long_arc}</p>
+        </div>
+
+        {purpose?.focus_domains?.length ? (
+          <div className="flex flex-wrap gap-2">
+            {purpose.focus_domains.map((domain) => (
+              <Badge key={domain} tone="soft">
+                {normalizeLabel(domain)}
+              </Badge>
+            ))}
+          </div>
+        ) : null}
+
+        {purpose?.evidence?.length ? (
+          <div className="space-y-3">
+            {purpose.evidence.slice(0, 3).map((item) => (
+              <div key={item} className="rounded-[24px] border border-[var(--line)] bg-white/5 px-4 py-4 text-sm text-[var(--muted)]">
+                {item}
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  )
+}
+
+function HouseForecastCard({ house, index }: { house: ForecastHouseEntry; index: number }) {
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.34, delay: 0.03 * index, ease: 'easeOut' }}
+      className="cosmic-shell rounded-[28px] px-5 py-5"
+    >
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <Badge tone={house.status === 'active' ? 'warm' : house.status === 'watch' ? 'soft' : 'muted'}>
+            {house.status === 'active' ? 'Ativa' : house.status === 'watch' ? 'Observacao' : 'Silenciosa'}
+          </Badge>
+        </div>
+        <div className="space-y-2">
+          <h4 className="text-xl font-semibold text-[var(--fg)]">{house.label}</h4>
+          <p className="text-sm text-[var(--muted)]">{house.what_tends_to_happen}</p>
+        </div>
+        <div className="grid gap-3">
+          <SoftCard label="Curto" value={house.short_term.summary} />
+          <SoftCard label="Ano" value={house.mid_term.summary} />
+        </div>
+      </div>
+    </motion.article>
+  )
+}
+
+function CoverageCard({ item, index }: { item: DomainCoverageEntry; index: number }) {
+  const statusTone = item.status === 'active' ? 'warm' : item.status === 'watch' ? 'soft' : 'muted'
+  const statusLabel = item.status === 'active' ? 'Ativo' : item.status === 'watch' ? 'Em observacao' : 'Silencioso'
+  const peakDate = item.time_window?.peak ? formatDate(item.time_window.peak) : 'Sem pico forte'
+
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.34, delay: 0.05 * index, ease: 'easeOut' }}
+      className="cosmic-shell rounded-[30px] px-5 py-5"
+    >
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <Badge tone={statusTone}>{statusLabel}</Badge>
+          <Badge tone={item.confidence === 'high' ? 'warm' : item.confidence === 'medium' ? 'soft' : 'muted'}>
+            {Math.round(item.probability * 100)}%
+          </Badge>
+        </div>
+
+        <div className="space-y-2">
+          <h4 className="text-xl font-semibold text-[var(--fg)]">{item.label}</h4>
+          <p className="text-sm text-[var(--muted)]">{item.summary}</p>
+        </div>
+
+        <div className="grid gap-3">
+          <SoftCard label="Data-pico" value={peakDate} />
+          <SoftCard
+            label="Janela"
+            value={
+              item.time_window
+                ? `${formatDate(item.time_window.start)} ate ${formatDate(item.time_window.end)}`
+                : 'Sem janela forte por enquanto'
+            }
+          />
+        </div>
+      </div>
+    </motion.article>
   )
 }
 
@@ -386,6 +796,56 @@ function formatDate(value: string) {
   }).format(new Date(`${value}T12:00:00`))
 }
 
+function formatFullDate(value: string) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(`${value}T12:00:00`))
+}
+
 function normalizeLabel(value: string) {
   return value.replaceAll('_', ' ')
+}
+
+function buildAreaSpecialMetrics(area: ForecastAreaEntry) {
+  const focus = area.special_focus
+  if (!focus) {
+    return []
+  }
+
+  if (area.key === 'relacionamento') {
+    return [
+      {
+        label: 'Compromisso',
+        value: `${Math.round((focus.marriage_probability ?? focus.bonding_probability ?? 0) * 100)}%`,
+      },
+      {
+        label: 'Ruptura',
+        value: `${Math.round((focus.breakup_probability ?? focus.tension_probability ?? 0) * 100)}%`,
+      },
+    ]
+  }
+
+  if (area.key === 'financas') {
+    return [
+      {
+        label: 'Expansao',
+        value: `${Math.round((focus.growth_probability ?? 0) * 100)}%`,
+      },
+      {
+        label: 'Restricao',
+        value: `${Math.round((focus.restriction_probability ?? 0) * 100)}%`,
+      },
+    ]
+  }
+
+  return focus.current_theme
+    ? [
+        {
+          label: 'Tema dominante',
+          value: normalizeLabel(focus.current_theme),
+        },
+      ]
+    : []
 }

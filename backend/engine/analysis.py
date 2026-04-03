@@ -148,6 +148,36 @@ ANGLE_DOMAIN_MAP = {
     "imum_coeli": "familia_lar",
 }
 
+POINT_DISPLAY_NAMES = {
+    "sun": "Sol",
+    "moon": "Lua",
+    "mercury": "Mercurio",
+    "venus": "Venus",
+    "mars": "Marte",
+    "jupiter": "Jupiter",
+    "saturn": "Saturno",
+    "uranus": "Urano",
+    "neptune": "Netuno",
+    "pluto": "Plutao",
+    "ascendant": "Ascendente",
+    "descendant": "Descendente",
+    "midheaven": "MC",
+    "imum_coeli": "IC",
+    "vertex": "Vertex",
+    "ASC": "Ascendente",
+    "DSC": "Descendente",
+    "MC": "MC",
+    "IC": "IC",
+}
+
+ANGLE_SHORT_NAMES = {
+    "ascendant": "ASC",
+    "descendant": "DSC",
+    "midheaven": "MC",
+    "imum_coeli": "IC",
+    "vertex": "Vertex",
+}
+
 
 def get_house_from_longitude(longitude: float, cusps: list[float]) -> int | None:
     if len(cusps) != 12:
@@ -233,7 +263,9 @@ def _signal_label(planet_a: str, aspect: str, planet_b: str) -> str:
         "trine": "trigono",
         "sextile": "sextil",
     }
-    return f"{planet_a.title()} em {translated.get(aspect, aspect)} com {planet_b.title()}"
+    left = POINT_DISPLAY_NAMES.get(planet_a, planet_a.title())
+    right = POINT_DISPLAY_NAMES.get(planet_b, planet_b.title())
+    return f"{left} em {translated.get(aspect, aspect)} com {right}"
 
 
 def _infer_domain(
@@ -505,6 +537,70 @@ def build_multilayer_analysis(
                     "evidence": transit_aspect,
                 }
             )
+
+        if profile_quality["can_use_angles"]:
+            for angle_name, angle_longitude in natal_ephemeris["angles"].items():
+                aspect_match = _find_aspect(
+                    transit_planet,
+                    angle_name,
+                    float(transit_data["longitude"]),
+                    float(angle_longitude),
+                    float(payload["orb_degrees"]),
+                )
+                if aspect_match is None:
+                    continue
+
+                aspect_name, target_angle, orb = aspect_match
+                phase = _phase_from_next_day(
+                    aspect_name,
+                    float(next_day_chart.planets[transit_planet]["longitude"]),
+                    float(angle_longitude),
+                    orb,
+                )
+                domain = ANGLE_DOMAIN_MAP.get(angle_name, "identidade")
+                duration = PLANET_SPEED_WINDOWS.get(transit_planet, 21)
+                weight = _signal_weight(
+                    technique="transits",
+                    aspect=aspect_name,
+                    planet_a=transit_planet,
+                    orb=orb,
+                    phase=phase,
+                    quality_modifier=float(profile_quality["confidence_modifier"]),
+                )
+                polarity = _signal_polarity(aspect_name, transit_planet)
+                angle_code = ANGLE_SHORT_NAMES.get(angle_name, angle_name)
+
+                transit_aspect = {
+                    "planet_a": transit_planet,
+                    "planet_b": angle_code,
+                    "aspect": aspect_name,
+                    "target_angle": target_angle,
+                    "orb": orb,
+                    "phase": phase,
+                    "domain": domain,
+                    "transit_house": current_planet_houses.get(transit_planet),
+                    "natal_house": None,
+                    "target_kind": "angle",
+                    "time_window": _build_time_window(reference_date, duration),
+                    "weight": weight,
+                }
+                transit_aspects.append(transit_aspect)
+                transit_signals.append(
+                    {
+                        "technique": "transits",
+                        "domain": domain,
+                        "label": _signal_label(transit_planet, aspect_name, angle_code),
+                        "weight": weight,
+                        "polarity": polarity,
+                        "phase": phase,
+                        "kind": "angle_aspect",
+                        "time_window": transit_aspect["time_window"],
+                        "evidence": {
+                            **transit_aspect,
+                            "angle_name": angle_name,
+                        },
+                    }
+                )
 
     birth_date = date.fromisoformat(payload["date"])
     profected_house = (_age_years(birth_date, reference_date) % 12) + 1
