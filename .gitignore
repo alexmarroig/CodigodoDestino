@@ -1,0 +1,8 @@
+backend/.venv/
+**/__pycache__/
+*.pyc
+backend/*.db
+backend/uvicorn-smoke.out
+backend/uvicorn-smoke.err
+frontend/node_modules/
+frontend/.next/

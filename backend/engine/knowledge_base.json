@@ -1,26 +1,98 @@
 {
   "venus_square_mars": {
-    "category": "relacionamento",
-    "weight": 0.7,
+    "source": "astrology",
+    "category": "relacionamentos",
+    "weight": 0.72,
+    "event": "Fase de atrito entre desejo, impulso e afetos",
+    "summary": "Desejo, carencia e iniciativa podem se desencontrar, exigindo calibragem emocional.",
     "interpretations": [
-      "tensão emocional",
-      "conflito entre desejo e afeto"
+      "necessidade de alinhar carencia emocional e iniciativa",
+      "conversas francas evitam desgaste desnecessario"
+    ],
+    "tags": ["relacionamentos", "tensao", "impulso"],
+    "recommendations": [
+      "Adie conversas importantes se estiver reativo.",
+      "Explicite expectativas antes de cobrar resposta."
     ]
   },
   "sun_opposition_saturn": {
+    "source": "astrology",
     "category": "carreira",
-    "weight": 0.65,
+    "weight": 0.68,
+    "event": "Momento de responsabilidade, cobranca e amadurecimento",
+    "summary": "Metas, autoridade e senso de limite pedem consistencia e maturidade pratica.",
     "interpretations": [
-      "pressão por resultados",
-      "cobrança de responsabilidades"
+      "pressao por resultados concretos",
+      "crescimento por consistencia e disciplina"
+    ],
+    "tags": ["carreira", "responsabilidade", "disciplina"],
+    "recommendations": [
+      "Divida entregas em marcos menores.",
+      "Negocie prazos com base no que consegue sustentar."
     ]
   },
-  "life_path_1": {
-    "category": "desenvolvimento_pessoal",
-    "weight": 0.45,
+  "moon_trine_venus": {
+    "source": "astrology",
+    "category": "afetos",
+    "weight": 0.61,
+    "event": "Fluxo favoravel para acolhimento, prazer e conciliacao",
+    "summary": "Ha maior facilidade para vinculo, suavidade emocional e reaproximacao.",
     "interpretations": [
-      "protagonismo",
-      "início de ciclo independente"
+      "facilidade para reconectar afetos",
+      "mais receptividade emocional"
+    ],
+    "tags": ["afetos", "harmonia", "acolhimento"],
+    "recommendations": [
+      "Aproveite para reparar pequenos desalinhamentos.",
+      "Cultive ambientes mais confortaveis e receptivos."
+    ]
+  },
+  "mercury_trine_jupiter": {
+    "source": "astrology",
+    "category": "comunicacao",
+    "weight": 0.64,
+    "event": "Expansao mental, visao estrategica e bons acordos",
+    "summary": "Pensamento, estudo e negociacao ganham amplitude e fluidez.",
+    "interpretations": [
+      "clareza para estudar, negociar e planejar",
+      "ideias mais amplas ganham tracao"
+    ],
+    "tags": ["comunicacao", "estudo", "planejamento"],
+    "recommendations": [
+      "Aproveite para negociar, ensinar ou apresentar ideias.",
+      "Registre insights antes de partir para a execucao."
+    ]
+  },
+  "mercury_square_saturn": {
+    "source": "astrology",
+    "category": "comunicacao",
+    "weight": 0.59,
+    "event": "Periodo de revisao, cautela e lapidacao mental",
+    "summary": "A mente pede rigor e filtro, mas pode escorregar para excesso de dureza.",
+    "interpretations": [
+      "cuidado com rigidez no discurso",
+      "melhor revisar do que agir com pressa"
+    ],
+    "tags": ["comunicacao", "revisao", "rigor"],
+    "recommendations": [
+      "Revise documentos e mensagens importantes.",
+      "Troque dureza por objetividade."
+    ]
+  },
+  "moon_square_mars": {
+    "source": "astrology",
+    "category": "emocional",
+    "weight": 0.66,
+    "event": "Sensibilidade alta e reatividade pedem manejo consciente",
+    "summary": "Emocoes e impulso se atritam, aumentando chance de resposta precipitada.",
+    "interpretations": [
+      "reacoes impulsivas tendem a crescer",
+      "descanso e pausa ajudam a recalibrar"
+    ],
+    "tags": ["emocional", "reatividade", "impulso"],
+    "recommendations": [
+      "Crie uma pausa antes de responder.",
+      "Canalize energia em movimento fisico ou tarefa objetiva."
     ]
   }
 }

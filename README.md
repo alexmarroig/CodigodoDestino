@@ -1,36 +1,52 @@
 # CodigodoDestino
 
-SaaS de previsões baseado em astrologia e numerologia com engine determinística + IA.
+Backend e frontend para um SaaS de previsoes com astrologia, numerologia e narrativa assistida por IA.
 
----
+## Stack
 
-# 🧠 Arquitetura
-
-- Backend: FastAPI + PostgreSQL + Redis
+- Backend: FastAPI, PostgreSQL, Redis, SQLAlchemy, Alembic
+- Engine: pyswisseph, numerologia, regras de eventos, OpenRouter
 - Frontend: Next.js + Tailwind
-- Engine:
-  - Astrologia (Swiss Ephemeris)
-  - Numerologia
-  - Regras simbólicas
-- Cache: Redis
-- Migrations: Alembic
-- IA: OpenRouter (fallback automático)
 
----
+## Subindo a infraestrutura local
 
-# ⚙️ Setup Backend
+Na raiz do projeto:
+
+```bash
+docker compose up -d postgres redis
+```
+
+## Setup do backend
 
 ```bash
 cd backend
-
-# criar ambiente virtual
 python -m venv .venv
-
-# ativar (Mac/Linux)
-source .venv/bin/activate
-
-# ativar (Windows)
 .venv\Scripts\activate
-
-# instalar dependências
 pip install -r requirements.txt
+copy .env.example .env
+alembic upgrade head
+uvicorn api.main:app --reload
+```
+
+## Endpoint principal
+
+`POST /mapa`
+
+Payload minimo:
+
+```json
+{
+  "date": "1995-03-10",
+  "time": "14:30",
+  "lat": -23.55,
+  "lon": -46.63,
+  "timezone": "America/Sao_Paulo"
+}
+```
+
+## Testes
+
+```bash
+cd backend
+pytest -q
+```

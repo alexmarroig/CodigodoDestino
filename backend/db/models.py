@@ -3,11 +3,13 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
+
+JSON_PAYLOAD = JSON().with_variant(JSONB, "postgresql")
 
 
 class User(Base):
@@ -25,8 +27,8 @@ class MapRequest(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
-    input_data: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
-    result: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    input_data: Mapped[dict[str, Any]] = mapped_column(JSON_PAYLOAD, nullable=False)
+    result: Mapped[dict[str, Any]] = mapped_column(JSON_PAYLOAD, nullable=False)
     engine_version: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 

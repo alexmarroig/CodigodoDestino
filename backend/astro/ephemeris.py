@@ -2,17 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, List
+from pathlib import Path
+from typing import Any
 
 import swisseph as swe
 
-# -----------------------------------
-# CONFIGURAÇÃO SWISS EPHEMERIS
-# -----------------------------------
+from core.config import settings
 
-swe.set_ephe_path("./ephe")
-
-FLAGS = swe.FLG_SWIEPH | swe.FLG_SPEED  # 🔥 removido SIDEREAL (evita erro)
+PRIMARY_FLAGS = swe.FLG_SWIEPH | swe.FLG_SPEED
+FALLBACK_FLAGS = swe.FLG_MOSEPH | swe.FLG_SPEED
 
 PLANETS = {
     "sun": swe.SUN,
@@ -22,54 +20,83 @@ PLANETS = {
     "mars": swe.MARS,
     "jupiter": swe.JUPITER,
     "saturn": swe.SATURN,
+    "uranus": swe.URANUS,
+    "neptune": swe.NEPTUNE,
+    "pluto": swe.PLUTO,
 }
 
-SIGNS = [
-    "aries", "taurus", "gemini", "cancer",
-    "leo", "virgo", "libra", "scorpio",
-    "sagittarius", "capricorn", "aquarius", "pisces"
-]
-
-# -----------------------------------
-# TYPES
-# -----------------------------------
 
 @dataclass(frozen=True)
 class EphemerisResult:
     utc_datetime: str
     julian_day: float
-    planets: Dict[str, Dict[str, float | str]]
-    angles: Dict[str, float]
-    houses: Dict[str, List[float] | str]
-
-# -----------------------------------
-# UTILS
-# -----------------------------------
-
-def _normalize(deg: float) -> float:
-    return round(deg % 360.0, 6)
+    planets: dict[str, dict[str, Any]]
+    angles: dict[str, float]
+    houses: dict[str, Any]
 
 
-def _get_sign(longitude: float) -> str:
-    index = int(longitude // 30)
-    return SIGNS[index]
+def _configure_ephemeris_path() -> None:
+    ephe_path = Path(settings.swisseph_path)
+    ephe_path.mkdir(parents=True, exist_ok=True)
+    swe.set_ephe_path(str(ephe_path))
+
+
+def _normalize(value: float) -> float:
+    return round(value % 360.0, 6)
 
 
 def julian_day_from_utc(dt_utc: datetime) -> float:
     dt = dt_utc.astimezone(timezone.utc)
-
     hour = (
         dt.hour
-        + dt.minute / 60
-        + dt.second / 3600
-        + dt.microsecond / 3_600_000_000
+        + (dt.minute / 60.0)
+        + (dt.second / 3600.0)
+        + (dt.microsecond / 3_600_000_000.0)
     )
-
     return swe.julday(dt.year, dt.month, dt.day, hour, swe.GREG_CAL)
 
-# -----------------------------------
-# CORE ENGINE
-# -----------------------------------
+
+def _calculate_planet(julian_day: float, planet_id: int, planet_name: str) -> dict[str, Any]:
+    for flags in (PRIMARY_FLAGS, FALLBACK_FLAGS):
+        try:
+            values, ret_flag = swe.calc_ut(julian_day, planet_id, flags)
+        except Exception:
+            continue
+
+        if ret_flag < 0:
+            continue
+
+        longitude_speed = round(values[3], 6)
+        return {
+            "longitude": _normalize(values[0]),
+            "latitude": round(values[1], 6),
+            "distance_au": round(values[2], 9),
+            "speed_longitude": longitude_speed,
+            "retrograde": longitude_speed < 0,
+        }
+
+    raise RuntimeError(f"Swiss Ephemeris failed for planet '{planet_name}'.")
+
+
+def _calculate_houses(julian_day: float, lat: float, lon: float, house_system: str) -> tuple[list[float], dict[str, float]]:
+    try:
+        cusps, ascmc = swe.houses(julian_day, lat, lon, house_system.encode("ascii"))
+    except Exception as exc:
+        raise RuntimeError("Swiss Ephemeris failed while calculating houses.") from exc
+
+    normalized_cusps = [_normalize(cusp) for cusp in list(cusps)]
+    ascendant = _normalize(ascmc[0])
+    midheaven = _normalize(ascmc[1])
+
+    angles = {
+        "ascendant": ascendant,
+        "descendant": _normalize(ascendant + 180.0),
+        "midheaven": midheaven,
+        "imum_coeli": _normalize(midheaven + 180.0),
+        "vertex": _normalize(ascmc[3]),
+    }
+    return normalized_cusps, angles
+
 
 def calculate_ephemeris(
     dt_utc: datetime,
@@ -77,62 +104,21 @@ def calculate_ephemeris(
     lon: float,
     house_system: str = "P",
 ) -> EphemerisResult:
+    _configure_ephemeris_path()
 
     dt = dt_utc.astimezone(timezone.utc)
-    jd = julian_day_from_utc(dt)
+    julian_day = julian_day_from_utc(dt)
 
-    # -------------------------
-    # PLANETAS
-    # -------------------------
-
-    planets: Dict[str, Dict[str, float | str]] = {}
-
-    for name, pid in PLANETS.items():
-        try:
-            calc, ret = swe.calc_ut(jd, pid, FLAGS)
-        except Exception as exc:
-            raise RuntimeError(f"Erro ao calcular planeta {name}") from exc
-
-        if ret < 0:
-            raise RuntimeError(f"Erro Swiss Ephemeris em {name}")
-
-        longitude = _normalize(calc[0])
-
-        planets[name] = {
-            "longitude": longitude,
-            "sign": _get_sign(longitude),
-            "speed": round(calc[3], 6),
-            "retrograde": calc[3] < 0,
-        }
-
-    # -------------------------
-    # CASAS + ÂNGULOS
-    # -------------------------
-
-    try:
-        house_code = house_system.encode("ascii")
-        cusps, ascmc = swe.houses(jd, lat, lon, house_code)
-    except Exception as exc:
-        raise RuntimeError("Erro ao calcular casas") from exc
-
-    houses = [_normalize(c) for c in cusps]
-
-    angles = {
-        "ascendant": _normalize(ascmc[0]),
-        "midheaven": _normalize(ascmc[1]),
+    planets = {
+        name: _calculate_planet(julian_day, planet_id, name)
+        for name, planet_id in PLANETS.items()
     }
-
-    # -------------------------
-    # RESULTADO FINAL
-    # -------------------------
+    cusps, angles = _calculate_houses(julian_day, lat, lon, house_system)
 
     return EphemerisResult(
         utc_datetime=dt.isoformat().replace("+00:00", "Z"),
-        julian_day=jd,
+        julian_day=julian_day,
         planets=planets,
         angles=angles,
-        houses={
-            "system": house_system,
-            "cusps": houses,
-        },
+        houses={"system": house_system, "cusps": cusps},
     )

@@ -17,6 +17,13 @@ depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    json_type = (
+        postgresql.JSONB(astext_type=sa.Text())
+        if bind.dialect.name == "postgresql"
+        else sa.JSON()
+    )
+
     op.create_table(
         "users",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -30,8 +37,8 @@ def upgrade() -> None:
         "map_requests",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=True),
-        sa.Column("input_data", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.Column("result", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("input_data", json_type, nullable=False),
+        sa.Column("result", json_type, nullable=False),
         sa.Column("engine_version", sa.String(length=64), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
