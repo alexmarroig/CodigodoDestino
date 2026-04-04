@@ -21,6 +21,7 @@ from db.session import SessionLocal, initialize_database
 from engine.adaptive_learning_engine import get_user_rule_overrides
 from engine.analysis import assess_profile_quality, build_multilayer_analysis, get_house_from_longitude
 from engine.events import build_domain_analysis, generate_events, summarize_events
+from engine.reality_translation import enrich_events_with_reality
 from engine.life_story_engine import build_life_story
 from engine.narrative import build_narrative_prompt, generate_narrative_with_cache
 from engine.question_engine import suggest_feedback_questions
@@ -64,6 +65,9 @@ def _normalize_payload(payload: dict[str, Any], reference_date: date) -> dict[st
         normalized["time"] = payload["time"].isoformat() if hasattr(payload["time"], "isoformat") else str(payload["time"])
     normalized["birth_time_precision"] = normalized.get("birth_time_precision")
     normalized["birth_time_window"] = normalized.get("birth_time_window")
+    if normalized.get("user_context") is not None:
+        ctx = normalized["user_context"]
+        normalized["user_context"] = ctx.model_dump(exclude_none=True) if hasattr(ctx, "model_dump") else ctx
     return normalized
 
 
@@ -217,6 +221,7 @@ def _build_astrology_snapshot(
     analysis["life_events"] = specialized["life_events"]
     domain_bundle = build_domain_analysis(analysis)
     events = generate_events(analysis, date.fromisoformat(payload["reference_date"]))
+    enrich_events_with_reality(events, payload.get("user_context"))
     event_summary = summarize_events(events)
     forecast_360 = build_forecast_360(
         payload=payload,
