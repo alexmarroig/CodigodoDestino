@@ -3,6 +3,22 @@ export type Intensity = 'high' | 'medium' | 'low'
 export type BirthTimePrecision = 'exact' | 'window' | 'unknown'
 export type BirthTimeWindow = 'morning' | 'afternoon' | 'evening'
 
+export type UserContext = {
+  relationship_status?: 'single' | 'dating' | 'married' | 'separated' | 'divorced' | 'widowed' | null
+  employment_status?: 'employed' | 'unemployed' | 'self_employed' | 'student' | 'retired' | null
+  has_children?: boolean | null
+  living_situation?: 'alone' | 'with_partner' | 'with_family' | 'shared' | null
+  father_present?: boolean | null
+  mother_present?: boolean | null
+}
+
+export type RealityTranslation = {
+  scenarios: string[]
+  impact: string
+  risk: string
+  action: string
+}
+
 export type MapaRequest = {
   date: string
   time?: string
@@ -14,6 +30,7 @@ export type MapaRequest = {
   reference_date?: string
   birth_time_precision?: BirthTimePrecision | null
   birth_time_window?: BirthTimeWindow | null
+  user_context?: UserContext | null
 }
 
 export type TimeWindow = {
@@ -55,6 +72,7 @@ export type ForecastEvent = {
   narrative_hint: string
   counter_signals?: string[]
   context: Record<string, unknown>
+  reality_translation?: RealityTranslation
   rank?: number
 }
 

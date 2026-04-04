@@ -8,6 +8,23 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+class UserContext(BaseModel):
+    """Real-life context used to translate astrological signals into concrete scenarios."""
+
+    relationship_status: Literal["single", "dating", "married", "separated", "divorced", "widowed"] | None = Field(
+        default=None, description="Current relationship status.",
+    )
+    employment_status: Literal["employed", "unemployed", "self_employed", "student", "retired"] | None = Field(
+        default=None, description="Current employment status.",
+    )
+    has_children: bool | None = Field(default=None, description="Whether the person has children.")
+    living_situation: Literal["alone", "with_partner", "with_family", "shared"] | None = Field(
+        default=None, description="Current living arrangement.",
+    )
+    father_present: bool | None = Field(default=None, description="Whether the father is present/alive.")
+    mother_present: bool | None = Field(default=None, description="Whether the mother is present/alive.")
+
+
 class MapaRequest(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
@@ -38,6 +55,7 @@ class MapaRequest(BaseModel):
     )
     reference_date: DateType | None = Field(default=None, description="Optional forecast anchor date.")
     user_id: int | None = None
+    user_context: UserContext | None = Field(default=None, description="Real-life context for concrete scenario translation.")
 
     @field_validator("timezone")
     @classmethod
