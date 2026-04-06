@@ -11,14 +11,14 @@ from engine.rules_engine import build_specialized_insights
 from numerologia.core import life_path_number, personal_year
 
 AREA_DEFINITIONS = [
-    {"key": "relacionamento", "label": "Relacionamentos", "domains": ["relacionamentos", "criatividade_afetos"]},
-    {"key": "amizades", "label": "Amizades", "domains": ["amigos_rede"]},
-    {"key": "familia", "label": "Familia", "domains": ["familia_lar"]},
-    {"key": "carreira", "label": "Carreira", "domains": ["carreira_status"]},
-    {"key": "saude", "label": "Saude", "domains": ["saude_rotina"]},
-    {"key": "viagens", "label": "Viagens", "domains": ["expansao_sentido", "comunicacao"]},
-    {"key": "transicoes", "label": "Transicoes", "domains": ["identidade", "crises_recursos", "psicologico_espiritual"]},
-    {"key": "financas", "label": "Financas", "domains": ["financeiro", "crises_recursos"]},
+    {"key": "relacionamento", "label": "Relacionamentos", "houses": [5, 7], "domains": ["relacionamentos", "criatividade_afetos"]},
+    {"key": "amizades", "label": "Amizades", "houses": [11], "domains": ["amigos_rede"]},
+    {"key": "familia", "label": "Familia", "houses": [4], "domains": ["familia_lar"]},
+    {"key": "carreira", "label": "Carreira", "houses": [10], "domains": ["carreira_status"]},
+    {"key": "saude", "label": "Saude", "houses": [6], "domains": ["saude_rotina"]},
+    {"key": "viagens", "label": "Viagens", "houses": [3, 9], "domains": ["expansao_sentido", "comunicacao"]},
+    {"key": "transicoes", "label": "Transicoes", "houses": [1, 8, 12], "domains": ["identidade", "crises_recursos", "psicologico_espiritual"]},
+    {"key": "financas", "label": "Financas", "houses": [2, 8], "domains": ["financeiro", "crises_recursos"]},
 ]
 
 AREA_ADVICE = {
@@ -48,6 +48,10 @@ HOUSE_LABELS = {
 }
 
 HOUSE_DOMAIN_MAP = {domain: house for house, domain in THEME_MAP.items()}
+AREA_BY_HOUSE = {
+    house: [area["key"] for area in AREA_DEFINITIONS if house in area["houses"]]
+    for house in range(1, 13)
+}
 
 
 def _add_months(anchor: date, months: int) -> date:
@@ -114,6 +118,55 @@ def _headline_from_period(period_label: str, coverage: list[dict[str, Any]]) -> 
     return f"{period_label}: {lead['label'].lower()} {_status_phrase(lead['status'], lead['intensity'])}."
 
 
+def _midpoint_date(start: str, end: str) -> str:
+    start_date = date.fromisoformat(start)
+    end_date = date.fromisoformat(end)
+    return (start_date + ((end_date - start_date) // 2)).isoformat()
+
+
+def _dedupe_strings(values: list[str], limit: int = 6) -> list[str]:
+    seen: list[str] = []
+    for value in values:
+        cleaned = str(value).strip()
+        if not cleaned or cleaned in seen:
+            continue
+        seen.append(cleaned)
+        if len(seen) >= limit:
+            break
+    return seen
+
+
+def _build_house_summary(house: int, domain_label: str, status: str, label: str) -> str:
+    base = HOUSE_LABELS[house]
+    if status == "active":
+        return f"{base} entra em fase forte durante {label}, puxando {domain_label} com mais consequencia pratica."
+    return f"{base} fica em observacao durante {label}, com sinais parciais em {domain_label}."
+
+
+def _build_period_house_activity(period_domains: list[dict[str, Any]], period_label: str) -> list[dict[str, Any]]:
+    activities: list[dict[str, Any]] = []
+    for domain in period_domains:
+        house = HOUSE_DOMAIN_MAP.get(domain["domain"])
+        if house is None:
+            continue
+        status = "active" if domain["converged"] else "watch"
+        activities.append(
+            {
+                "house": house,
+                "domain": domain["domain"],
+                "domain_label": domain["domain_label"],
+                "status": status,
+                "probability": round(float(domain["probability"]), 2),
+                "confidence": "high" if domain["converged"] else "medium",
+                "signals": [signal["label"] for signal in domain["signals"][:4]],
+                "time_window": domain["time_window"],
+                "summary": _build_house_summary(house, domain["domain_label"], status, period_label),
+                "tone": domain["tone"],
+            }
+        )
+    return activities
+
+
 def _build_period_result(
     *,
     period: dict[str, Any],
@@ -160,6 +213,18 @@ def _build_period_result(
     analysis["purpose_analysis"] = specialized["purpose"]
     domain_bundle = build_domain_analysis(analysis)
     events = generate_events(analysis, period["start"])
+    house_activity = _build_period_house_activity(domain_bundle["domains"], period["label"])
+    strongest_coverage = max(
+        domain_bundle["coverage"],
+        key=lambda item: (_status_rank(item["status"]), float(item["probability"])),
+        default=None,
+    )
+    turning_point_score = round(
+        sum(float(item["probability"]) for item in domain_bundle["coverage"] if item["status"] == "active")
+        + (len([item for item in domain_bundle["domains"] if item["converged"]]) * 0.18)
+        + (len(events) * 0.07),
+        2,
+    )
 
     return {
         "period_key": period["period_key"],
@@ -168,10 +233,21 @@ def _build_period_result(
         "horizon": period["horizon"],
         "start": period["start"].isoformat(),
         "end": period["end"].isoformat(),
+        "peak": (
+            (strongest_coverage.get("time_window") or {}).get("peak")
+            if strongest_coverage
+            else _midpoint_date(period["start"].isoformat(), period["end"].isoformat())
+        ),
+        "signals": _dedupe_strings(
+            [signal for item in domain_bundle["coverage"] for signal in item.get("signals", [])],
+            limit=8,
+        ),
         "coverage": domain_bundle["coverage"],
         "domains": domain_bundle["domains"],
+        "houses": house_activity,
         "confidence": domain_bundle["confidence"],
         "events": events,
+        "turning_point_score": turning_point_score,
         "special_forecasts": {
             "relacionamento": specialized["relationship"],
             "financas": specialized["financial"],
@@ -238,19 +314,30 @@ def _aggregate_area_forecasts(timeline_results: list[dict[str, Any]]) -> list[di
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
     for period in timeline_results:
-        for item in period["coverage"]:
-            special_entry = dict(period.get("special_forecasts", {}).get(item["key"], {}))
-            grouped[item["key"]].append(
-                {
-                    **item,
-                    "label": period["label"],
-                    "start": period["start"],
-                    "end": period["end"],
-                    "granularity": period["granularity"],
-                    "horizon": period["horizon"],
-                    "special": special_entry,
-                }
-            )
+        special_forecasts = dict(period.get("special_forecasts") or {})
+        for house_entry in period["houses"]:
+            for area_key in AREA_BY_HOUSE.get(int(house_entry["house"]), []):
+                special_entry = dict(special_forecasts.get(area_key, {}))
+                grouped[area_key].append(
+                    {
+                        "house": house_entry["house"],
+                        "status": house_entry["status"],
+                        "probability": house_entry["probability"],
+                        "confidence": house_entry["confidence"],
+                        "summary": house_entry["summary"],
+                        "signals": list(house_entry.get("signals", [])),
+                        "time_window": house_entry["time_window"],
+                        "label": period["label"],
+                        "start": period["start"],
+                        "end": period["end"],
+                        "peak": period["peak"],
+                        "period_key": period["period_key"],
+                        "granularity": period["granularity"],
+                        "horizon": period["horizon"],
+                        "special": special_entry,
+                        "turning_point_score": period.get("turning_point_score", 0.0),
+                    }
+                )
 
     forecasts: list[dict[str, Any]] = []
     for area in AREA_DEFINITIONS:
@@ -260,6 +347,32 @@ def _aggregate_area_forecasts(timeline_results: list[dict[str, Any]]) -> list[di
         short_entries = [entry for entry in entries if entry["horizon"] == "short"]
         mid_entries = [entry for entry in entries if entry["granularity"] == "month"]
         long_entries = [entry for entry in entries if entry["horizon"] == "long"]
+        timeline_hits = [
+            {
+                "period": entry["label"],
+                "period_key": entry["period_key"],
+                "status": entry["status"],
+                "probability": round(float(entry["probability"]), 2),
+                "summary": entry.get("special", {}).get("summary") or entry["summary"],
+                "peak_date": (entry.get("time_window") or {}).get("peak") or entry.get("peak"),
+                "house": entry["house"],
+                "granularity": entry["granularity"],
+                "horizon": entry["horizon"],
+            }
+            for entry in entries
+        ]
+        counter_signals = _dedupe_strings(
+            [
+                entry["summary"]
+                for entry in entries
+                if strongest
+                and (
+                    entry["status"] != strongest["status"]
+                    or float(entry["probability"]) < max(0.0, float(strongest["probability"]) - 0.15)
+                )
+            ],
+            limit=3,
+        )
         forecasts.append(
             {
                 "key": area["key"],
@@ -277,22 +390,18 @@ def _aggregate_area_forecasts(timeline_results: list[dict[str, Any]]) -> list[di
                 ),
                 "why_now": (
                     strongest_special.get("why_now")
-                    or (" + ".join((strongest or {}).get("signals", [])[:3]) if strongest else "Sem convergencia tecnica suficiente neste momento.")
+                    or (
+                        f"As casas {', '.join(str(house) for house in area['houses'])} ganharam mais movimento, "
+                        f"com foco principal em casa {strongest['house']}."
+                        if strongest
+                        else "Sem convergencia tecnica suficiente neste momento."
+                    )
                 ),
                 "advice": strongest_special.get("advice") or AREA_ADVICE[area["key"]],
                 "signals": strongest_special.get("signals") or (strongest or {}).get("signals", []),
-                "counter_signals": [],
+                "counter_signals": counter_signals,
                 "special_focus": strongest_special or None,
-                "timeline_hits": [
-                    {
-                        "period": entry["label"],
-                        "status": entry["status"],
-                        "probability": round(float(entry["probability"]), 2),
-                        "summary": entry.get("special", {}).get("summary") or entry["summary"],
-                        "peak_date": (entry.get("time_window") or {}).get("peak"),
-                    }
-                    for entry in entries
-                ],
+                "timeline_hits": timeline_hits,
             }
         )
 
@@ -303,24 +412,23 @@ def _aggregate_house_forecasts(timeline_results: list[dict[str, Any]]) -> list[d
     grouped: dict[int, list[dict[str, Any]]] = defaultdict(list)
 
     for period in timeline_results:
-        for domain in period["domains"]:
-            house = HOUSE_DOMAIN_MAP.get(domain["domain"])
-            if house is None:
-                continue
+        for house_entry in period["houses"]:
+            house = int(house_entry["house"])
             grouped[house].append(
                 {
                     "house": house,
+                    "period_key": period["period_key"],
                     "label": period["label"],
                     "start": period["start"],
                     "end": period["end"],
                     "granularity": period["granularity"],
                     "horizon": period["horizon"],
-                    "status": "active" if domain["converged"] else "watch",
-                    "probability": round(float(domain["probability"]), 2),
-                    "summary": f"{domain['domain_label'].capitalize()} ganha destaque em {period['label']}.",
-                    "signals": [signal["label"] for signal in domain["signals"][:4]],
-                    "time_window": domain["time_window"],
-                    "tone": domain["tone"],
+                    "status": house_entry["status"],
+                    "probability": round(float(house_entry["probability"]), 2),
+                    "summary": house_entry["summary"],
+                    "signals": list(house_entry.get("signals", [])),
+                    "time_window": house_entry["time_window"],
+                    "tone": house_entry["tone"],
                 }
             )
 
@@ -342,14 +450,21 @@ def _aggregate_house_forecasts(timeline_results: list[dict[str, Any]]) -> list[d
                 "timeline_hits": [
                     {
                         "period": entry["label"],
+                        "period_key": entry["period_key"],
                         "status": entry["status"],
                         "probability": round(float(entry["probability"]), 2),
                         "summary": entry["summary"],
+                        "peak_date": (entry.get("time_window") or {}).get("peak"),
                     }
                     for entry in entries
                 ],
                 "peak_dates": _peak_dates(entries),
                 "what_tends_to_happen": strongest["summary"] if strongest else f"{HOUSE_LABELS[house]} fica mais silenciosa neste ciclo.",
+                "reading": (
+                    f"{HOUSE_LABELS[house]} tende a ficar mais forte no ciclo, puxando {THEME_MAP[house].replace('_', ' ')} para o primeiro plano."
+                    if strongest
+                    else f"{HOUSE_LABELS[house]} segue mais quieta, sem um gatilho forte e continuo neste periodo."
+                ),
                 "signals": (strongest or {}).get("signals", []),
             }
         )
@@ -361,34 +476,84 @@ def _build_life_episodes(area_forecasts: list[dict[str, Any]]) -> list[dict[str,
     episodes: list[dict[str, Any]] = []
 
     for area in area_forecasts:
-        active_hits = [hit for hit in area["timeline_hits"] if hit["status"] != "quiet"]
-        if not active_hits:
+        ordered_hits = [hit for hit in area["timeline_hits"] if hit["status"] != "quiet"]
+        if not ordered_hits:
             continue
-        first_hit = active_hits[0]
-        last_hit = active_hits[-1]
-        episodes.append(
-            {
-                "id": f"{area['key']}-{first_hit['period']}",
-                "title": f"{area['label']} entra em capitulo ativo",
-                "domain": area["key"],
-                "start": first_hit["period"],
-                "end": last_hit["period"],
-                "peak": area["peak_dates"][0] if area["peak_dates"] else None,
-                "arc": "comeco -> intensificacao -> ajuste",
-                "summary": area["what_tends_to_happen"],
-                "key_dates": area["peak_dates"][:3],
-            }
-        )
 
-    episodes.sort(key=lambda item: item["start"])
+        clusters: list[list[dict[str, Any]]] = []
+        current_cluster: list[dict[str, Any]] = []
+        previous_period_key: str | None = None
+        for hit in ordered_hits:
+            current_prefix = str(hit["period_key"])[0]
+            previous_prefix = previous_period_key[0] if previous_period_key else None
+            contiguous = (
+                previous_period_key is not None
+                and current_prefix == previous_prefix
+                and abs(int(str(hit["period_key"])[1:]) - int(str(previous_period_key)[1:])) <= 1
+            )
+            if not current_cluster or contiguous:
+                current_cluster.append(hit)
+            else:
+                clusters.append(current_cluster)
+                current_cluster = [hit]
+            previous_period_key = str(hit["period_key"])
+        if current_cluster:
+            clusters.append(current_cluster)
+
+        for cluster in clusters:
+            first_hit = cluster[0]
+            last_hit = cluster[-1]
+            strongest = max(cluster, key=lambda item: (_status_rank(item["status"]), float(item["probability"])))
+            cluster_peaks = _dedupe_strings(
+                [str(hit.get("peak_date") or "") for hit in cluster if hit.get("peak_date")],
+                limit=3,
+            )
+            episodes.append(
+                {
+                    "id": f"{area['key']}-{first_hit['period_key']}",
+                    "title": f"{area['label']} entra em capitulo ativo",
+                    "domain": area["key"],
+                    "start": first_hit["period"],
+                    "end": last_hit["period"],
+                    "peak": cluster_peaks[0] if cluster_peaks else None,
+                    "arc": "comeco -> intensificacao -> virada -> estabilizacao",
+                    "summary": strongest["summary"],
+                    "key_dates": cluster_peaks,
+                }
+            )
+
+    episodes.sort(key=lambda item: (item["start"], item["domain"]))
     return episodes[:8]
 
 
-def _build_turning_points(area_forecasts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _build_turning_points(timeline_results: list[dict[str, Any]], area_forecasts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     turning_points: list[dict[str, Any]] = []
 
+    ranked_periods = sorted(
+        [period for period in timeline_results if float(period.get("turning_point_score", 0.0)) > 0],
+        key=lambda item: (-float(item["turning_point_score"]), item["start"]),
+    )
+    for period in ranked_periods[:8]:
+        lead = max(
+            period["coverage"],
+            key=lambda item: (_status_rank(item["status"]), float(item["probability"])),
+            default=None,
+        )
+        if not lead:
+            continue
+        turning_points.append(
+            {
+                "date": period["peak"],
+                "domain": lead["key"],
+                "label": lead["label"],
+                "probability": round(min(0.97, float(lead["probability"]) + (float(period["turning_point_score"]) * 0.03)), 2),
+                "headline": lead["headline"] if "headline" in lead else f"{lead['label']} ganha ponto de virada",
+                "summary": lead["summary"],
+            }
+        )
+
     for area in area_forecasts:
-        for peak_date in area["peak_dates"][:2]:
+        for peak_date in area["peak_dates"][:1]:
             turning_points.append(
                 {
                     "date": peak_date,
@@ -460,6 +625,45 @@ def _build_overview(area_forecasts: list[dict[str, Any]], turning_points: list[d
     if turning:
         return f"Os proximos meses concentram movimento em {head}, com virada mais sensivel em torno de {turning}."
     return f"Os proximos meses concentram movimento em {head}, exigindo leitura por etapas e nao por um unico evento."
+
+
+def _build_timeline_horizon_summary(
+    area_forecasts: list[dict[str, Any]],
+    horizon_key: str,
+    label: str,
+) -> dict[str, Any]:
+    horizon_entries = []
+    for area in area_forecasts:
+        horizon = dict(area.get(horizon_key) or {})
+        horizon_entries.append(
+            {
+                "label": area["label"],
+                "status": horizon.get("status", "quiet"),
+                "probability": float(horizon.get("probability", 0.0)),
+                "summary": horizon.get("summary") or f"{area['label']} segue sem destaque claro.",
+                "peak_date": horizon.get("peak_date"),
+            }
+        )
+
+    ranked = sorted(
+        horizon_entries,
+        key=lambda item: (_status_rank(item["status"]), item["probability"]),
+        reverse=True,
+    )
+    lead = [item for item in ranked if item["status"] != "quiet"][:3]
+    focus_areas = [item["label"] for item in lead]
+    peak_dates = _dedupe_strings([str(item["peak_date"]) for item in lead if item.get("peak_date")], limit=3)
+    summary = (
+        " / ".join(item["summary"] for item in lead)
+        if lead
+        else f"{label} segue sem uma convergencia forte o bastante para cravar direcao."
+    )
+    return {
+        "label": label,
+        "summary": summary,
+        "focus_areas": focus_areas,
+        "peak_dates": peak_dates,
+    }
 
 
 def inject_exact_timing_into_forecast(
@@ -566,7 +770,7 @@ def build_forecast_360(
     area_forecasts = _aggregate_area_forecasts(timeline_results)
     house_forecasts = _aggregate_house_forecasts(timeline_results)
     life_episodes = _build_life_episodes(area_forecasts)
-    turning_points = _build_turning_points(area_forecasts)
+    turning_points = _build_turning_points(timeline_results, area_forecasts)
     purpose_forecast = _build_purpose_forecast(timeline_results)
 
     return {
@@ -575,9 +779,9 @@ def build_forecast_360(
         "casas": house_forecasts,
         "proposito": purpose_forecast,
         "timelines": {
-            "short_term": "proximas 6 a 8 semanas",
-            "mid_term": "proximos 12 meses",
-            "long_term": "capitulos de 12 a 24 meses",
+            "short_term": _build_timeline_horizon_summary(area_forecasts, "short_term", "proximas 6 a 8 semanas"),
+            "mid_term": _build_timeline_horizon_summary(area_forecasts, "mid_term", "proximos 12 meses"),
+            "long_term": _build_timeline_horizon_summary(area_forecasts, "long_term", "tendencia de 2 a 3 anos"),
         },
         "key_dates": [item["date"] for item in turning_points],
         "timeline": {"periods": timeline_results},

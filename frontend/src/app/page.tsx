@@ -4,8 +4,10 @@ import Link from 'next/link'
 import { useDeferredValue, useEffect, useState, useTransition } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 
+import { BrandOrb } from '@/components/BrandOrb'
 import { BirthForm } from '@/components/BirthForm'
 import { ErrorStatePanel } from '@/components/ErrorStatePanel'
+import { LivingBackground } from '@/components/LivingBackground'
 import { LoadingSkeleton } from '@/components/LoadingSkeleton'
 import { ResultsDashboard } from '@/components/ResultsDashboard'
 import { SplashScreen } from '@/components/SplashScreen'
@@ -89,8 +91,7 @@ export default function Home() {
     <main className="relative min-h-screen overflow-hidden">
       <SplashScreen />
 
-      <div className="aurora-field pointer-events-none absolute inset-0 opacity-90" />
-      <div className="starfield pointer-events-none absolute inset-0 opacity-45" />
+      <LivingBackground />
 
       <motion.div
         animate={{ rotate: 360 }}
@@ -105,9 +106,12 @@ export default function Home() {
 
       <div className="relative mx-auto max-w-[1440px] px-5 pb-24 pt-6 sm:px-8 lg:px-10">
         <header className="flex items-center justify-between gap-4 py-4">
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.44em] text-[var(--muted-soft)]">Codigo do Destino</p>
-            <p className="text-sm text-[var(--muted)]">Leitura pessoal, emocional e guiada.</p>
+          <div className="flex items-center gap-4">
+            <BrandOrb size="header" className="shrink-0" />
+            <div className="space-y-2">
+              <p className="text-xs uppercase tracking-[0.44em] text-[var(--muted-soft)]">Codigo do Destino</p>
+              <p className="text-sm text-[var(--muted)]">Leitura pessoal, emocional e guiada.</p>
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-3">
@@ -131,10 +135,10 @@ export default function Home() {
               <p className="text-xs uppercase tracking-[0.42em] text-[var(--muted-soft)]">Uma leitura para o seu agora</p>
               <div className="space-y-4">
                 <h1 className="max-w-4xl text-5xl font-semibold leading-[0.88] sm:text-7xl xl:text-[6.4rem]">
-                  Existe um padrao na sua vida. Descubra o que esta se movendo agora.
+                  O seu destino agora tem forma, orbita e movimento.
                 </h1>
                 <p className="max-w-2xl text-base text-[var(--muted)] sm:text-lg">
-                  Em poucos passos, a sua leitura se abre com delicadeza e revela os sinais mais vivos do seu momento.
+                  Sinais, ciclos, datas e capitulos da sua historia aparecem aqui em uma leitura mais viva e mais clara.
                 </p>
               </div>
             </div>
@@ -154,9 +158,9 @@ export default function Home() {
             <div className="section-rule" />
 
             <div className="grid gap-4 sm:grid-cols-3">
-              <HeroWhisper title="Tres perguntas" copy="Nada de termos tecnicos ou formularios frios." />
-              <HeroWhisper title="Ritmo guiado" copy="A experiencia revela uma camada por vez." />
-              <HeroWhisper title="Leitura final" copy="Eventos e narrativa em uma linguagem mais humana." />
+              <HeroWhisper title="Entrada suave" copy="A experiencia abre em camadas, sem jogar tudo de uma vez." />
+              <HeroWhisper title="Timeline real" copy="A leitura entra por ciclos, nao por frases soltas." />
+              <HeroWhisper title="Leitura final" copy="Eventos, casas e narrativa em uma linguagem mais humana." />
             </div>
           </motion.div>
 
@@ -166,27 +170,11 @@ export default function Home() {
             transition={{ duration: 0.7, ease: 'easeOut', delay: 0.08 }}
             className="relative flex justify-center xl:justify-end"
           >
-            <div className="relative h-[36rem] w-full max-w-[34rem]">
-              <div className="absolute inset-0 rounded-[40px] bg-[radial-gradient(circle,rgba(241,212,162,0.12),transparent_62%)] blur-3xl" />
-              <div className="cosmic-shell-strong relative flex h-full flex-col justify-between overflow-hidden rounded-[40px] p-8">
-                <div className="aurora-field absolute inset-0 opacity-75" />
-                <div className="starfield absolute inset-0 opacity-55" />
-
-                <div className="relative space-y-5">
-                  <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Atravessar a leitura</p>
-                  <div className="space-y-4">
-                    <h2 className="text-4xl font-semibold leading-[0.92]">Uma experiencia de entrada, nao um formulario.</h2>
-                    <p className="text-base text-[var(--muted)]">
-                      Data, hora e cidade. O resto fica invisivel, trabalhando a favor da leitura.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="relative space-y-3">
-                  <PortalLine label="Passo 1" value="Voce entra pela memoria do nascimento." />
-                  <PortalLine label="Passo 2" value="A hora exata define a precisao do mapa." />
-                  <PortalLine label="Passo 3" value="A cidade ancora os sinais no seu ponto de origem." />
-                </div>
+            <div className="brand-stage relative h-[38rem] w-full max-w-[36rem] overflow-hidden rounded-[44px]">
+              <div className="brand-stage-backdrop absolute inset-0" />
+              <div className="brand-stage-noise absolute inset-0" />
+              <div className="relative flex h-full items-center justify-center px-8 py-8">
+                <BrandOrb size="hero" />
               </div>
             </div>
           </motion.div>

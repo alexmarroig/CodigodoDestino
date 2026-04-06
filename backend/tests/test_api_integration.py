@@ -55,6 +55,7 @@ def test_mapa_endpoint_keeps_compatibility(monkeypatch) -> None:
     assert "confidence" in data
     assert "uncertainties" in data
     assert "techniques_used" in data
+    assert "predictive_insights" in data
     assert "forecast_360" in data
     assert "timeline" in data
     assert "life_episodes" in data

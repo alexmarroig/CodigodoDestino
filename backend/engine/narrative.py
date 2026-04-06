@@ -206,6 +206,7 @@ def build_narrative_prompt(
             "relationship": analysis.get("relationship_analysis", {}),
             "financial": analysis.get("financial_analysis", {}),
             "purpose": analysis.get("purpose_analysis", {}),
+            "predictive_insights": analysis.get("predictive_insights", {}),
             "rule_hits": analysis.get("rule_hits", [])[:12],
             "exact_timing": analysis.get("exact_timing", {}),
             "life_events": analysis.get("life_events", []),
@@ -302,33 +303,54 @@ def _build_local_fallback(
     uncertainties: list[dict[str, Any]],
     plan: dict[str, Any],
     forecast_360: dict[str, Any],
+    predictive_insights: dict[str, Any] | None = None,
     *,
     reason_override: str | None = None,
 ) -> dict[str, Any]:
     area_forecasts = list(forecast_360.get("areas_da_vida", []))
     turning_points = list(forecast_360.get("turning_points", []))
     purpose_forecast = dict(forecast_360.get("proposito") or {})
+    timeline_summaries = dict(forecast_360.get("timelines") or {})
+    house_forecasts = list(forecast_360.get("casas", []))
+    predictive_insights = dict(predictive_insights or {})
+    strongest_predictive = next(iter(predictive_insights.get("detected_events", [])), None)
 
     if area_forecasts:
         ranked_areas = sorted(
             area_forecasts,
             key=lambda item: (item.get("status") != "active", -float(item.get("probability", 0.0))),
         )
-        lead_areas = ranked_areas[:4]
+        lead_houses = sorted(
+            house_forecasts,
+            key=lambda item: (item.get("status") != "active", -float(item.get("probability", 0.0))),
+        )[:4]
         paragraphs = [str(forecast_360.get("summary", "")).strip()]
-
-        for area in lead_areas:
-            short_term = dict(area.get("short_term") or {})
-            mid_term = dict(area.get("mid_term") or {})
-            peak_dates = list(area.get("peak_dates") or [])
-            peak_clause = f" Pico em {peak_dates[0]}." if peak_dates else ""
+        if strongest_predictive:
             paragraphs.append(
                 (
-                    f"{area['label']}: {area.get('what_tends_to_happen', area.get('label', 'Este tema entra em movimento.'))} "
-                    f"No curto prazo, {short_term.get('summary', 'o tema se movimenta sem definicao total.')} "
-                    f"Nos proximos meses, {mid_term.get('summary', 'o eixo segue em desenvolvimento.')}{peak_clause}"
+                    f"Forecast objetivo: {strongest_predictive['event_type']} em "
+                    f"{strongest_predictive['time_window'].get('label', 'janela em formacao')}. "
+                    f"{strongest_predictive['explanation']}"
                 ).strip()
             )
+
+        if timeline_summaries:
+            short_term = dict(timeline_summaries.get("short_term") or {})
+            mid_term = dict(timeline_summaries.get("mid_term") or {})
+            long_term = dict(timeline_summaries.get("long_term") or {})
+            paragraphs.append(f"Curto prazo: {short_term.get('summary', 'Os proximos movimentos ainda estao se formando.')}")
+            paragraphs.append(f"Proximos 12 meses: {mid_term.get('summary', 'O ano segue pedindo leitura por etapas.')}")
+            paragraphs.append(f"Tendencia maior: {long_term.get('summary', 'O ciclo mais longo ainda esta em abertura.')}")
+
+        area_lines = []
+        for area in area_forecasts:
+            peak_dates = list(area.get("peak_dates") or [])
+            peak_clause = f" Pico em {peak_dates[0]}." if peak_dates else ""
+            area_lines.append(
+                f"{area['label']}: {area.get('what_tends_to_happen', area['label'])} {area.get('why_now', '')}{peak_clause}".strip()
+            )
+        if area_lines:
+            paragraphs.append("Areas da vida:\n- " + "\n- ".join(area_lines))
 
         if purpose_forecast:
             paragraphs.append(
@@ -343,6 +365,13 @@ def _build_local_fallback(
                 f"{item['date']} - {item['headline']}" for item in turning_points[:4]
             )
             paragraphs.append(f"Datas de virada: {turning_text}.")
+
+        if lead_houses:
+            house_lines = [
+                f"{house['label']}: {house.get('reading') or house.get('what_tends_to_happen')}"
+                for house in lead_houses
+            ]
+            paragraphs.append("Casas em maior destaque:\n- " + "\n- ".join(house_lines))
 
         if uncertainties:
             paragraphs.append(
@@ -436,6 +465,7 @@ def generate_narrative_with_cache(
                 uncertainties,
                 plan,
                 prompt_data["analysis_digest"].get("forecast_360", {}),
+                prompt_data["analysis_digest"].get("special_forecasts", {}).get("predictive_insights", {}),
             ),
             "cached": False,
         }
@@ -449,6 +479,7 @@ def generate_narrative_with_cache(
                 uncertainties,
                 plan,
                 prompt_data["analysis_digest"].get("forecast_360", {}),
+                prompt_data["analysis_digest"].get("special_forecasts", {}).get("predictive_insights", {}),
                 reason_override="openrouter-disabled",
             ),
             "cached": False,
@@ -492,13 +523,14 @@ def generate_narrative_with_cache(
         except Exception:
             return {
                 **_build_local_fallback(
-                    events,
-                    domains,
-                    confidence,
-                    uncertainties,
-                    plan,
-                    prompt_data["analysis_digest"].get("forecast_360", {}),
-                    reason_override="openrouter-failed-fallback",
-                ),
-                "cached": False,
+                events,
+                domains,
+                confidence,
+                uncertainties,
+                plan,
+                prompt_data["analysis_digest"].get("forecast_360", {}),
+                prompt_data["analysis_digest"].get("special_forecasts", {}).get("predictive_insights", {}),
+                reason_override="openrouter-failed-fallback",
+            ),
+            "cached": False,
             }

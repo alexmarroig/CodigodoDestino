@@ -45,6 +45,7 @@ body {
   color: var(--fg);
   font-feature-settings: 'liga' 1, 'calt' 1;
   text-rendering: optimizeLegibility;
+  overflow-x: hidden;
 }
 
 body::before {
@@ -87,6 +88,43 @@ body::before {
 }
 
 @layer components {
+  .living-cosmos {
+    background:
+      radial-gradient(circle at 18% 18%, rgba(74, 229, 255, 0.14), transparent 24%),
+      radial-gradient(circle at 78% 16%, rgba(255, 119, 217, 0.12), transparent 24%),
+      radial-gradient(circle at 48% 62%, rgba(182, 129, 255, 0.12), transparent 28%),
+      radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.03), transparent 40%);
+    animation: living-cosmos-shift 22s ease-in-out infinite;
+  }
+
+  .nebula-band {
+    border-radius: 999px;
+    filter: blur(80px);
+    opacity: 0.5;
+    mix-blend-mode: screen;
+  }
+
+  .nebula-band-a {
+    background: radial-gradient(circle, rgba(68, 226, 255, 0.28), transparent 68%);
+  }
+
+  .nebula-band-b {
+    background: radial-gradient(circle, rgba(255, 110, 214, 0.22), transparent 68%);
+  }
+
+  .nebula-band-c {
+    background: radial-gradient(circle, rgba(141, 114, 255, 0.2), transparent 68%);
+  }
+
+  .cosmic-grid-drift {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 120px 120px;
+    mask-image: radial-gradient(circle at center, black 30%, transparent 88%);
+    animation: cosmic-grid-pan 38s linear infinite;
+  }
+
   .cosmic-shell {
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 30%),
@@ -155,6 +193,108 @@ body::before {
     opacity: 0.5;
   }
 
+  .starfield-drift {
+    animation: starfield-drift 42s linear infinite;
+  }
+
+  .brand-stage {
+    background:
+      radial-gradient(circle at 50% 18%, rgba(84, 239, 255, 0.1), transparent 22%),
+      linear-gradient(180deg, rgba(8, 12, 26, 0.92), rgba(4, 7, 17, 0.94));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 50px 140px rgba(0, 0, 0, 0.54);
+  }
+
+  .brand-stage-backdrop {
+    background:
+      radial-gradient(circle at 50% 42%, rgba(92, 241, 255, 0.14), transparent 24%),
+      radial-gradient(circle at 55% 38%, rgba(255, 104, 214, 0.12), transparent 18%),
+      radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.04), transparent 46%);
+    animation: living-cosmos-shift 18s ease-in-out infinite;
+  }
+
+  .brand-stage-noise {
+    background-image:
+      radial-gradient(circle at 14% 16%, rgba(255, 255, 255, 0.62) 0 1px, transparent 1.4px),
+      radial-gradient(circle at 82% 24%, rgba(255, 255, 255, 0.46) 0 1px, transparent 1.4px),
+      radial-gradient(circle at 68% 72%, rgba(255, 255, 255, 0.35) 0 1px, transparent 1.4px);
+    background-size: 300px 300px;
+    opacity: 0.48;
+  }
+
+  .orb-ring {
+    border-radius: 999px;
+    border: 1px solid rgba(151, 225, 255, 0.22);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+      0 0 40px rgba(101, 223, 255, 0.08);
+  }
+
+  .orb-ring-outer {
+    background:
+      conic-gradient(
+        from 90deg,
+        rgba(95, 235, 255, 0.65),
+        rgba(95, 235, 255, 0.06) 18%,
+        rgba(255, 173, 97, 0.78) 36%,
+        rgba(255, 173, 97, 0.08) 48%,
+        rgba(126, 179, 255, 0.62) 70%,
+        rgba(126, 179, 255, 0.08) 84%,
+        rgba(95, 235, 255, 0.65)
+      );
+    mask: radial-gradient(circle, transparent 62%, black 64%, black 69%, transparent 71%);
+  }
+
+  .orb-ring-mid {
+    background:
+      conic-gradient(
+        from 180deg,
+        rgba(255, 110, 212, 0.55),
+        rgba(255, 110, 212, 0.06) 30%,
+        rgba(93, 241, 255, 0.58) 56%,
+        rgba(93, 241, 255, 0.06) 82%,
+        rgba(255, 110, 212, 0.55)
+      );
+    mask: radial-gradient(circle, transparent 64%, black 67%, black 74%, transparent 77%);
+  }
+
+  .orb-aura {
+    background:
+      radial-gradient(circle, rgba(123, 240, 255, 0.26), rgba(255, 99, 214, 0.18) 38%, transparent 72%);
+    filter: blur(16px);
+  }
+
+  .orb-video-shell {
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+      0 34px 90px rgba(0, 0, 0, 0.45),
+      0 0 70px rgba(105, 214, 255, 0.2);
+    background: rgba(4, 7, 17, 0.94);
+  }
+
+  .orb-video {
+    transform: scale(1.04);
+    filter: saturate(1.08) contrast(1.02);
+  }
+
+  .orb-video-glow {
+    background:
+      radial-gradient(circle at 38% 28%, rgba(255, 255, 255, 0.3), transparent 20%),
+      radial-gradient(circle at 50% 50%, transparent 56%, rgba(111, 229, 255, 0.18) 78%, rgba(255, 110, 214, 0.16) 100%);
+    mix-blend-mode: screen;
+  }
+
+  .orb-frame-chip {
+    position: absolute;
+    margin-left: -50%;
+    margin-top: -50%;
+  }
+
+  .orb-wordmark {
+    text-shadow: 0 0 24px rgba(98, 230, 255, 0.26);
+  }
+
   .reading-copy {
     color: rgba(248, 245, 239, 0.92);
     font-family: var(--font-display), serif;
@@ -174,6 +314,37 @@ body::before {
 
   .text-muted-soft {
     color: var(--muted-soft);
+  }
+}
+
+@keyframes living-cosmos-shift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(1.5%, -1.5%, 0) scale(1.04);
+  }
+}
+
+@keyframes cosmic-grid-pan {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(0, 120px, 0);
+  }
+}
+
+@keyframes starfield-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-1.5%, 1.5%, 0) scale(1.03);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 

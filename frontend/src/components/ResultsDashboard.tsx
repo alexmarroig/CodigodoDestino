@@ -55,6 +55,10 @@ export function ResultsDashboard({ result, onRestart }: ResultsDashboardProps) {
   const lifeEvents = result.life_events ?? forecast360?.life_events ?? []
   const purpose = forecast360?.proposito ?? result.analysis?.purpose_analysis
 
+  const shortTimeline = normalizeTimelineSummary(forecast360?.timelines?.short_term, 'Proximas 6 a 8 semanas ainda estao se formando.')
+  const midTimeline = normalizeTimelineSummary(forecast360?.timelines?.mid_term, 'O ano segue pedindo leitura por etapas.')
+  const longTimeline = normalizeTimelineSummary(forecast360?.timelines?.long_term, 'O ciclo maior ainda esta abrindo direcao.')
+
   return (
     <section id="reading-stage" className="space-y-10">
       <motion.div
@@ -110,6 +114,12 @@ export function ResultsDashboard({ result, onRestart }: ResultsDashboardProps) {
               <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Leitura 360</p>
               <h3 className="text-3xl font-semibold sm:text-5xl">O ciclo inteiro, nao so um evento</h3>
               <p className="max-w-3xl text-sm text-[var(--muted)] sm:text-base">{forecast360.summary}</p>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-3">
+              <TimelineSummaryCard label="Curto prazo" summary={shortTimeline.summary} peaks={shortTimeline.peak_dates} />
+              <TimelineSummaryCard label="Proximos 12 meses" summary={midTimeline.summary} peaks={midTimeline.peak_dates} />
+              <TimelineSummaryCard label="Ciclo maior" summary={longTimeline.summary} peaks={longTimeline.peak_dates} />
             </div>
 
             <div className="grid gap-4 xl:grid-cols-[1.12fr,0.88fr]">
@@ -289,7 +299,8 @@ export function ResultsDashboard({ result, onRestart }: ResultsDashboardProps) {
 }
 
 function TimelinePanel({ periods }: { periods: TimelinePeriodEntry[] }) {
-  const visible = periods.slice(0, 12)
+  const months = periods.filter((period) => period.granularity === 'month').slice(0, 12)
+  const quarters = periods.filter((period) => period.granularity === 'quarter')
 
   return (
     <section className="cosmic-shell rounded-[34px] px-6 py-6 sm:px-8">
@@ -300,13 +311,37 @@ function TimelinePanel({ periods }: { periods: TimelinePeriodEntry[] }) {
         </div>
 
         <div className="space-y-3">
-          {visible.map((period) => (
-            <div key={period.period_key} className="rounded-[24px] border border-[var(--line)] bg-white/5 px-4 py-4">
-              <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted-soft)]">{period.label}</p>
-              <p className="mt-2 text-sm text-[var(--fg)]">{period.headline}</p>
-            </div>
-          ))}
+          {months.map((period) => {
+            const periodSignals = Array.isArray(period.signals) ? period.signals : []
+
+            return (
+              <div key={period.period_key} className="rounded-[24px] border border-[var(--line)] bg-white/5 px-4 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted-soft)]">{period.label}</p>
+                  <span className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted-soft)]">
+                    pico {formatDate(period.peak ?? period.start)}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm text-[var(--fg)]">{period.headline ?? 'O periodo ganha movimento.'}</p>
+                {periodSignals.length ? (
+                  <p className="mt-2 text-xs text-[var(--muted)]">{periodSignals.slice(0, 3).join(' • ')}</p>
+                ) : null}
+              </div>
+            )
+          })}
         </div>
+
+        {quarters.length ? (
+          <div className="space-y-3 border-t border-[var(--line)] pt-4">
+            <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted-soft)]">Capitulos seguintes</p>
+            {quarters.map((period) => (
+              <div key={period.period_key} className="rounded-[24px] border border-[var(--line)] bg-white/5 px-4 py-4">
+                <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted-soft)]">{period.label}</p>
+                <p className="mt-2 text-sm text-[var(--fg)]">{period.headline}</p>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
     </section>
   )
@@ -556,14 +591,28 @@ function HouseForecastCard({ house, index }: { house: ForecastHouseEntry; index:
         </div>
         <div className="space-y-2">
           <h4 className="text-xl font-semibold text-[var(--fg)]">{house.label}</h4>
-          <p className="text-sm text-[var(--muted)]">{house.what_tends_to_happen}</p>
+          <p className="text-sm text-[var(--muted)]">{house.reading}</p>
         </div>
         <div className="grid gap-3">
           <SoftCard label="Curto" value={house.short_term.summary} />
           <SoftCard label="Ano" value={house.mid_term.summary} />
+          <SoftCard label="Ciclo maior" value={house.long_term.summary} />
         </div>
+        {house.peak_dates.length ? <p className="text-sm text-[var(--muted)]">Data-pico: {formatFullDate(house.peak_dates[0])}</p> : null}
       </div>
     </motion.article>
+  )
+}
+
+function TimelineSummaryCard({ label, summary, peaks }: { label: string; summary: string; peaks: string[] }) {
+  return (
+    <div className="cosmic-shell rounded-[28px] px-5 py-5">
+      <div className="space-y-3">
+        <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted-soft)]">{label}</p>
+        <p className="text-sm text-[var(--fg)]">{summary}</p>
+        {peaks.length ? <p className="text-xs text-[var(--muted)]">Datas-chave: {peaks.map(formatDate).join(' • ')}</p> : null}
+      </div>
+    </div>
   )
 }
 
@@ -848,4 +897,24 @@ function buildAreaSpecialMetrics(area: ForecastAreaEntry) {
         },
       ]
     : []
+}
+
+function normalizeTimelineSummary(
+  value: unknown,
+  fallbackSummary: string,
+): { summary: string; peak_dates: string[] } {
+  if (typeof value === 'string') {
+    return { summary: value, peak_dates: [] }
+  }
+
+  if (value && typeof value === 'object') {
+    const maybeSummary = 'summary' in value ? String((value as { summary?: string }).summary ?? fallbackSummary) : fallbackSummary
+    const maybePeaks =
+      'peak_dates' in value && Array.isArray((value as { peak_dates?: string[] }).peak_dates)
+        ? ((value as { peak_dates?: string[] }).peak_dates ?? [])
+        : []
+    return { summary: maybeSummary, peak_dates: maybePeaks }
+  }
+
+  return { summary: fallbackSummary, peak_dates: [] }
 }

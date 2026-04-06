@@ -23,6 +23,7 @@ from engine.analysis import assess_profile_quality, build_multilayer_analysis, g
 from engine.events import build_domain_analysis, generate_events, summarize_events
 from engine.life_story_engine import build_life_story
 from engine.narrative import build_narrative_prompt, generate_narrative_with_cache
+from engine.predictive_insights import build_predictive_insights
 from engine.question_engine import suggest_feedback_questions
 from engine.rules_engine import build_specialized_insights
 from engine.timeline import build_forecast_360, inject_exact_timing_into_forecast
@@ -79,6 +80,13 @@ def _hydrate_cached_response(cached_response: dict[str, Any], request_id: str, c
     }
     cached_response.setdefault("feedback_questions", [])
     cached_response.setdefault("user_rule_overrides", {})
+    if "predictive_insights" not in cached_response and isinstance(cached_response.get("analysis"), dict):
+        input_block = dict(cached_response.get("input") or {})
+        reference_date = date.fromisoformat(str(input_block.get("reference_date")))
+        cached_response["predictive_insights"] = build_predictive_insights(
+            cached_response["analysis"],
+            reference_date=reference_date,
+        )
     if isinstance(cached_response.get("narrative"), dict):
         cached_response["narrative"]["cached"] = True
     return cached_response
@@ -215,6 +223,10 @@ def _build_astrology_snapshot(
     analysis["purpose_analysis"] = specialized["purpose"]
     analysis["exact_timing"] = specialized["exact_timing"]
     analysis["life_events"] = specialized["life_events"]
+    predictive_insights = build_predictive_insights(
+        analysis,
+        reference_date=date.fromisoformat(payload["reference_date"]),
+    )
     domain_bundle = build_domain_analysis(analysis)
     events = generate_events(analysis, date.fromisoformat(payload["reference_date"]))
     event_summary = summarize_events(events)
@@ -241,6 +253,7 @@ def _build_astrology_snapshot(
     )
 
     analysis["domain_analysis"] = domain_bundle
+    analysis["predictive_insights"] = predictive_insights
     analysis["timeline"] = forecast_360["timeline"]
     analysis["life_story"] = life_story
     analysis["feedback_questions"] = feedback_questions
@@ -263,6 +276,7 @@ def _build_astrology_snapshot(
         "confidence": domain_bundle["confidence"],
         "uncertainties": domain_bundle["uncertainties"],
         "techniques_used": analysis["techniques_used"],
+        "predictive_insights": predictive_insights,
         "user_rule_overrides": user_rule_overrides,
         "feedback_questions": feedback_questions,
         "forecast_360": forecast_360,
@@ -294,6 +308,13 @@ def _resolve_computed_snapshot(
         if isinstance(cached_snapshot.get("analysis"), dict):
             cached_snapshot["analysis"].setdefault("feedback_questions", [])
             cached_snapshot["analysis"].setdefault("user_rule_overrides", {})
+            if "predictive_insights" not in cached_snapshot:
+                reference_date = date.fromisoformat(str(payload["reference_date"]))
+                cached_snapshot["predictive_insights"] = build_predictive_insights(
+                    cached_snapshot["analysis"],
+                    reference_date=reference_date,
+                )
+            cached_snapshot["analysis"]["predictive_insights"] = cached_snapshot["predictive_insights"]
         return cached_snapshot, True, True
 
     computed_snapshot, ephemeris_cache_hit = _build_astrology_snapshot(payload, cache, db)
@@ -366,6 +387,7 @@ def run_pipeline(
         "confidence": computed_snapshot["confidence"],
         "uncertainties": computed_snapshot["uncertainties"],
         "techniques_used": computed_snapshot["techniques_used"],
+        "predictive_insights": computed_snapshot["predictive_insights"],
         "user_rule_overrides": computed_snapshot["user_rule_overrides"],
         "feedback_questions": computed_snapshot["feedback_questions"],
         "events": computed_snapshot["events"],

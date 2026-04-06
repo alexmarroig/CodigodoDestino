@@ -174,10 +174,14 @@ export type ForecastHorizon = {
 
 export type ForecastTimelineHit = {
   period: string
+  period_key?: string
   status: 'active' | 'watch' | 'quiet'
   probability: number
   summary: string
   peak_date?: string | null
+  house?: number
+  granularity?: 'month' | 'quarter'
+  horizon?: 'short' | 'mid' | 'long'
 }
 
 export type LifeEventWindow = {
@@ -278,6 +282,7 @@ export type ForecastHouseEntry = {
   timeline_hits: ForecastTimelineHit[]
   peak_dates: string[]
   what_tends_to_happen: string
+  reading: string
   signals: string[]
 }
 
@@ -288,7 +293,31 @@ export type TimelinePeriodEntry = {
   horizon: 'short' | 'mid' | 'long'
   start: string
   end: string
+  peak: string
+  signals: string[]
+  domains: DomainAnalysisEntry[]
+  houses: Array<{
+    house: number
+    domain: string
+    domain_label: string
+    status: 'active' | 'watch'
+    probability: number
+    confidence: 'high' | 'medium'
+    signals: string[]
+    time_window: TimeWindow
+    summary: string
+    tone: 'supportive' | 'challenging' | 'mixed'
+  }>
+  events: ForecastEvent[]
+  turning_point_score: number
   headline: string
+}
+
+export type ForecastTimelineSummary = {
+  label: string
+  summary: string
+  focus_areas: string[]
+  peak_dates: string[]
 }
 
 export type LifeEpisode = {
@@ -431,9 +460,9 @@ export type MapaResponse = {
     critical_periods?: ExactCriticalPeriod[]
     life_events?: LifeEvent[]
     timelines: {
-      short_term: string
-      mid_term: string
-      long_term: string
+      short_term: ForecastTimelineSummary
+      mid_term: ForecastTimelineSummary
+      long_term: ForecastTimelineSummary
     }
     key_dates: string[]
   }

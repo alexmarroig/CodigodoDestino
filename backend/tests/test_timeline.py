@@ -43,6 +43,8 @@ def test_generate_timeline_builds_months_and_quarters() -> None:
     assert periods[11]["granularity"] == "month"
     assert periods[12]["granularity"] == "quarter"
     assert periods[-1]["horizon"] == "long"
+    assert periods[0]["period_key"] == "m1"
+    assert periods[-1]["period_key"] == "q4"
 
 
 def test_build_forecast_360_returns_fixed_shapes() -> None:
@@ -76,3 +78,10 @@ def test_build_forecast_360_returns_fixed_shapes() -> None:
     assert "life_episodes" in forecast
     assert "turning_points" in forecast
     assert "proposito" in forecast
+    assert isinstance(forecast["timelines"]["short_term"], dict)
+    assert "summary" in forecast["timelines"]["mid_term"]
+    assert "peak" in forecast["timeline"]["periods"][0]
+    assert "houses" in forecast["timeline"]["periods"][0]
+    assert "signals" in forecast["timeline"]["periods"][0]
+    assert "turning_point_score" in forecast["timeline"]["periods"][0]
+    assert "reading" in forecast["casas"][0]

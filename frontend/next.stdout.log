@@ -1,0 +1,28 @@
+
+> astrologia-frontend@1.0.0 predev
+> node -e "require('fs').rmSync('.next',{ recursive: true, force: true })"
+
+
+> astrologia-frontend@1.0.0 dev
+> next dev --port 3000
+
+  ▲ Next.js 14.2.5
+  - Local:        http://localhost:3000
+
+ ✓ Starting...
+ ✓ Ready in 1694ms
+ ○ Compiling / ...
+ ✓ Compiled / in 11.4s (1316 modules)
+ GET / 200 in 83ms
+ ✓ Compiled in 1407ms (1298 modules)
+ GET / 200 in 504ms
+ ○ Compiling /horaria ...
+ ✓ Compiled /horaria in 1988ms (1291 modules)
+ GET / 200 in 516ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 568ms (1289 modules)
+ GET /_next/static/css/app/layout.css?v=1775338557177 404 in 693ms
+ GET /_next/static/chunks/main-app.js?v=1775338557177 404 in 522ms
+ GET /_next/static/chunks/app/page.js 404 in 520ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 522ms
+ GET /_next/static/chunks/app/not-found.js 404 in 520ms
