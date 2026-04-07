@@ -6,6 +6,18 @@ from typing import Any
 
 from engine.analysis import DOMAIN_LABELS
 
+def get_probability_label(prob: float) -> str:
+    percent = int(round(prob * 100))
+    if prob >= 0.9:
+        return f"Confirmado ({percent}%)"
+    if prob >= 0.8:
+        return f"Muito Provável ({percent}%)"
+    if prob >= 0.7:
+        return f"Provável ({percent}%)"
+    if prob >= 0.6:
+        return f"Possível ({percent}%)"
+    return f"Tendência ({percent}%)"
+
 EVENT_TYPE_BY_DOMAIN = {
     "identidade": "identity_shift",
     "financeiro": "financial_recalibration",
@@ -50,7 +62,7 @@ EVENT_TONE_TEMPLATES = {
     },
     "relacionamentos": {
         "supportive": {
-            "description": "Os vinculos entram em fase mais aberta a alinhamento e reaproximacao.",
+            "description": "Os vinculos entram em fase mais aberta a entendimento e reaproximacao.",
             "effect": "Pode aparecer como conversas produtivas, redefinicao de combinados e maior clareza afetiva.",
             "advice": [
                 "Fale com franqueza, mas sem transformar tudo em ultimato.",
@@ -66,7 +78,7 @@ EVENT_TONE_TEMPLATES = {
             ],
         },
         "mixed": {
-            "description": "O campo relacional esta ativo, mas ainda instavel.",
+            "description": "A area de relacionamentos esta ativo, mas ainda instavel.",
             "effect": "Ha ao mesmo tempo desejo de aproximação e necessidade de rever limites.",
             "advice": [
                 "Va para a conversa com um objetivo claro.",
@@ -77,7 +89,7 @@ EVENT_TONE_TEMPLATES = {
     "familia_lar": {
         "supportive": {
             "description": "A base emocional e domestica pede consolidacao.",
-            "effect": "Surge mais vontade de organizar a casa, proteger energia e fortalecer senso de raiz.",
+            "effect": "Surge mais vontade de organizar a casa, proteger seu bem-estar e fortalecer senso de raiz.",
             "advice": [
                 "Fortaleça o que te da base antes de expandir para fora.",
                 "Resolva uma pendencia domestica concreta.",
@@ -88,7 +100,7 @@ EVENT_TONE_TEMPLATES = {
             "effect": "Isso pode se traduzir em tensao familiar, desconforto com ambiente ou necessidade de reorganizar a base.",
             "advice": [
                 "Nao adie uma conversa domestica importante.",
-                "Proteja sua energia antes de absorver o caos de terceiros.",
+                "Proteja seu bem-estar antes de absorver o caos de terceiros.",
             ],
         },
         "mixed": {
@@ -106,7 +118,7 @@ EVENT_TONE_TEMPLATES = {
             "effect": "A fase favorece pequenos ajustes que geram melhora consistente.",
             "advice": [
                 "Simplifique a rotina antes de tentar otimizar tudo.",
-                "Trate energia e descanso como parte da estrategia.",
+                "Trate o descanso como parte da estrategia.",
             ],
         },
         "challenging": {
@@ -118,7 +130,7 @@ EVENT_TONE_TEMPLATES = {
             ],
         },
         "mixed": {
-            "description": "O campo de saude e rotina pede recalibracao, nao improviso.",
+            "description": "A area de saude e rotina pede recalibracao, nao improviso.",
             "effect": "O periodo oscila entre desejo de produzir mais e necessidade de respeitar limite.",
             "advice": [
                 "Organize o essencial antes de aceitar novas demandas.",
@@ -131,7 +143,7 @@ EVENT_TONE_TEMPLATES = {
 DEFAULT_TONE_TEMPLATE = {
     "supportive": {
         "description": "Esse dominio entra em fase de maior abertura e movimentacao.",
-        "effect": "A tendencia e ganhar clareza, oportunidade ou fluxo mais favoravel.",
+        "effect": "A tendencia e ganhar clareza, oportunidade ou movimento mais favoravel.",
         "advice": [
             "Aproveite a janela sem perder criterio.",
             "Transforme impulso em decisao pratica.",
@@ -399,6 +411,7 @@ def build_domain_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
             "mixed_weight": mixed_weight,
             "total_weight": total_weight,
             "probability": probability,
+                "probability_label": get_probability_label(probability),
             "intensity": _intensity(total_weight),
             "tone": tone,
             "converged": converged,
@@ -513,6 +526,7 @@ def generate_events(
                 "category": item["domain"],
                 "domains": [item["domain"]],
                 "probability": probability,
+                "probability_label": get_probability_label(probability),
                 "intensity": item["intensity"],
                 "score": probability,
                 "priority": max(1, min(100, int(round(probability * 100)))),
