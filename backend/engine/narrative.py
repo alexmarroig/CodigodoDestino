@@ -44,11 +44,13 @@ def _compact_event(event: dict[str, Any]) -> dict[str, Any]:
         "title": event["title"],
         "domain": event["category"],
         "probability": event["probability"],
+        "probability_label": event.get("probability_label", ""),
         "intensity": event["intensity"],
         "signals": event.get("signals", [])[:4],
         "time_window": event["time_window"],
         "counter_signals": event.get("counter_signals", [])[:2],
         "recommendations": event.get("recommendations", [])[:2],
+        "reality_translation": event.get("reality_translation", {}),
     }
 
 
@@ -234,6 +236,31 @@ def build_narrative_prompt(
         "5. Datas de virada e o que tende a acontecer em cada uma.",
         "6. Incertezas e o que observar.",
         "7. Nota curta de responsabilidade.",
+        "",
+        "TRADUÇÃO PARA REALIDADE HUMANA (OBRIGATÓRIO PARA CADA EVENTO):",
+        "Para cada evento detectado no JSON, você DEVE convertê-lo em uma situação de vida real.",
+        "NÃO use termos abstratos como energia, vibração, fluxo ou alinhamento.",
+        "Siga exatamente este formato para cada evento:",
+        "[Tipo de Evento] — [Probability Level (use o probability_label do JSON)]",
+        "",
+        "Timeframe:",
+        "[Janela de tempo aproximada]",
+        "",
+        "O que está acontecendo:",
+        "[Explicação direta e prática]",
+        "",
+        "O que isso pode parecer na vida real:",
+        "* [Cenário 1]",
+        "* [Cenário 2]",
+        "",
+        "Impacto:",
+        "[Consequência na vida real]",
+        "",
+        "Risco:",
+        "[O que pode dar errado se ignorado]",
+        "",
+        "Ação recomendada:",
+        "[Orientação de comportamento clara e prática]"
     ]
 
     return {
