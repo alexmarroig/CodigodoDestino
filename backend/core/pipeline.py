@@ -22,6 +22,7 @@ from engine.adaptive_learning_engine import get_user_rule_overrides
 from engine.analysis import assess_profile_quality, build_multilayer_analysis, get_house_from_longitude
 from engine.events import build_domain_analysis, generate_events, summarize_events
 from engine.reality_translation import enrich_events_with_reality
+from engine.decision_motor import rank_events, identify_involved_person
 from engine.life_story_engine import build_life_story
 from engine.narrative import build_narrative_prompt, generate_narrative_with_cache
 from engine.question_engine import suggest_feedback_questions
@@ -223,6 +224,20 @@ def _build_astrology_snapshot(
     events = generate_events(analysis, date.fromisoformat(payload["reference_date"]))
     enrich_events_with_reality(events, payload.get("user_context"))
     event_summary = summarize_events(events)
+    # Rank events and identify involved persons for the new decision motor
+    decision_results = rank_events(events, date.fromisoformat(payload["reference_date"]))
+    dominant_event = decision_results["dominant"]
+    secondary_event = decision_results["secondary"]
+
+    if dominant_event:
+        dominant_event["involved_person"] = identify_involved_person(dominant_event)
+    if secondary_event:
+        secondary_event["involved_person"] = identify_involved_person(secondary_event)
+
+    # Calculate 0-10 Scores
+    scores = calculate_scores(decision_results["all_ranked"], date.fromisoformat(payload["reference_date"]))
+    decision_results["scores"] = scores
+        secondary_event["involved_person"] = identify_involved_person(secondary_event)
     forecast_360 = build_forecast_360(
         payload=payload,
         natal_ephemeris=cached_ephemeris,
@@ -282,6 +297,8 @@ def _build_astrology_snapshot(
         "exact_timing": specialized["exact_timing"],
         "life_events": specialized["life_events"],
         "life_story": life_story,
+        "decision_results": computed_snapshot["decision_results"],
+        "decision_results": decision_results,
     }
     return computed_snapshot, ephemeris_cache_hit
 
@@ -355,7 +372,7 @@ def run_pipeline(
         computed_snapshot["life_episodes"],
         computed_snapshot["turning_points"],
     )
-    narrative = generate_narrative_with_cache(prompt_data, cache)
+    narrative = generate_narrative_with_cache(prompt_data, cache, decision_results)
 
     response = {
         "request_id": request_id,

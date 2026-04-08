@@ -281,7 +281,7 @@ export function ResultsDashboard({ result, onRestart }: ResultsDashboardProps) {
           className="cosmic-shell-strong relative overflow-hidden rounded-[40px] px-6 py-10 sm:px-10 sm:py-12"
         >
           <div className="aurora-field absolute inset-0 opacity-80" />
-          <div className="relative reading-copy max-w-4xl">{result.narrative.text}</div>
+          <PremiumNarrative narrative={result.narrative} decisionResults={result.analysis.decision_results} />
         </motion.section>
       </div>
     </section>
