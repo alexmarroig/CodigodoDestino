@@ -98,6 +98,64 @@ PROBABILITY_LEVELS = {
     4: "High",
 }
 
+REALITY_TEMPLATES = {
+    "health": {
+        "what": "Daily pressure is concentrating on routine, stamina, and emotional resilience.",
+        "scenarios": [
+            "Work, family, or study demands pile up until sleep, appetite, or focus start to slip.",
+            "A minor physical issue, stress spike, or emotional crash forces a pause in the schedule.",
+            "The person notices that their body is reacting to overload before they consciously slow down.",
+        ],
+        "impact": "The pace of daily life has to change. Productivity, mood, and consistency can all drop until the routine is corrected.",
+        "risk": "If ignored, stress turns into mistakes, avoidable health setbacks, or a longer recovery period.",
+        "action": "Reduce overload early, protect sleep, and treat persistent symptoms or emotional strain as something to address with real support.",
+    },
+    "career": {
+        "what": "Professional structure is shifting, and the current role, path, or expectations may no longer hold in the same way.",
+        "scenarios": [
+            "A boss, client, or institution increases pressure and forces a decision about staying, leaving, or repositioning.",
+            "A new opportunity appears, but it requires a concrete tradeoff such as more responsibility, relocation, or a sharper public role.",
+            "The person reaches a point where continuing in the same professional pattern becomes more costly than changing it.",
+        ],
+        "impact": "Career direction, reputation, daily workload, and long-term goals can all be redefined during this phase.",
+        "risk": "If ignored, the person may stay stuck in a role that is already collapsing or miss the timing to make a stronger move.",
+        "action": "Treat this as a decision period. Clarify the role you want, document facts, and make moves based on strategy rather than fatigue.",
+    },
+    "relationships": {
+        "what": "Emotional and relational patterns are becoming harder to keep vague, so bonds move toward clarity, commitment, or friction.",
+        "scenarios": [
+            "A relationship becomes serious through honest discussion, clearer expectations, or a concrete next step.",
+            "Someone new enters quickly and changes the emotional focus of the period.",
+            "An existing bond stops coasting and requires direct conversation about what each person actually wants.",
+        ],
+        "impact": "The person gains clarity about intimacy, emotional reciprocity, and whether a bond is growing or only being prolonged.",
+        "risk": "If ignored, mixed signals can turn into resentment, false hope, or emotional triangles that complicate the situation further.",
+        "action": "Say what you want clearly, test reciprocity with actions, and do not confuse temporary intensity with long-term stability.",
+    },
+    "rupture": {
+        "what": "A bond, agreement, or emotional structure is under enough strain that separation, cutoff, or a hard reset becomes more likely.",
+        "scenarios": [
+            "A relationship reaches a breaking point after repeated tension, silence, or incompatible needs.",
+            "A family or emotional bond cools sharply after one difficult conversation or a long unresolved pattern.",
+            "The person decides to stop tolerating a situation that has been draining them for too long.",
+        ],
+        "impact": "Emotional priorities change quickly, and the person may have to rebuild boundaries, routines, or support systems.",
+        "risk": "If ignored, the rupture can become messier, more public, or more damaging to trust and mental stability.",
+        "action": "Handle the situation directly, protect dignity, and prepare for practical consequences instead of waiting for the issue to dissolve on its own.",
+    },
+    "major_transitions": {
+        "what": "Several layers of life are reorganizing at once, so identity, direction, resources, or place in the world can change together.",
+        "scenarios": [
+            "A career shift triggers financial, personal, and relational changes over the same period.",
+            "A person leaves an old life chapter behind and starts rebuilding from a new set of priorities.",
+            "External pressure forces a decision that changes how the person lives, works, or defines themselves.",
+        ],
+        "impact": "This phase can redraw the long-term map, affecting direction, commitments, money, and psychological stability at the same time.",
+        "risk": "If ignored, the transition becomes reactive instead of strategic, creating bigger losses and unnecessary chaos.",
+        "action": "Assume that this is a turning period. Simplify what is unsustainable, choose a clear direction, and make deliberate changes before circumstances choose for you.",
+    },
+}
+
 
 def _parse_iso_date(value: str | None) -> date | None:
     if not value:
@@ -183,6 +241,28 @@ def _sort_signals(signals: list[dict[str, Any]]) -> list[dict[str, Any]]:
             item.get("label", ""),
         ),
     )
+
+
+def _build_human_translation(category_key: str, time_label: str) -> dict[str, Any]:
+    template = REALITY_TEMPLATES[category_key]
+    return {
+        "what_is_happening": template["what"],
+        "what_this_may_look_like_in_real_life": template["scenarios"][:2],
+        "possible_scenarios": template["scenarios"][:3],
+        "impact": template["impact"],
+        "risk": template["risk"],
+        "recommended_action": template["action"],
+        "formatted_block": (
+            f"Timeframe:\n{time_label}\n\n"
+            f"What is happening:\n{template['what']}\n\n"
+            "What this may look like in real life:\n"
+            + "\n".join(f"* {item}" for item in template["scenarios"][:2])
+            + "\n\n"
+            f"Impact:\n{template['impact']}\n\n"
+            f"Risk:\n{template['risk']}\n\n"
+            f"Recommended action:\n{template['action']}"
+        ),
+    }
 
 
 def build_predictive_insights(
@@ -284,6 +364,12 @@ def build_predictive_insights(
                 }
             ),
         }
+        entry.update(
+            _build_human_translation(
+                definition["key"],
+                entry["time_window"]["label"],
+            )
+        )
 
         if independent_signals >= 3:
             detected_events.append(entry)

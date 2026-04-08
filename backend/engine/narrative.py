@@ -189,6 +189,8 @@ def build_narrative_prompt(
     plan = _build_narrative_plan(analysis, events, confidence, uncertainties)
     prompt_payload = {
         "profile_quality": analysis.get("profile_quality", {}),
+        "user_context": analysis.get("user_context", {}),
+        "related_people": analysis.get("related_people", []),
         "confidence": confidence,
         "event_summary": event_summary,
         "macro_theme": {
@@ -232,9 +234,10 @@ def build_narrative_prompt(
         "2. Curto prazo, proximos 12 meses e tendencia mais longa.",
         "3. Relacionamentos, amizades, familia, carreira, saude, viagens, transicoes e financas.",
         "4. Proposito e direcao de vida.",
-        "5. Datas de virada e o que tende a acontecer em cada uma.",
-        "6. Incertezas e o que observar.",
-        "7. Nota curta de responsabilidade.",
+        "5. Para cada evento validado, traduza para vida real: o que esta acontecendo, 2 ou 3 cenarios concretos, impacto, risco e acao recomendada.",
+        "6. Datas de virada e o que tende a acontecer em cada uma.",
+        "7. Incertezas e o que observar.",
+        "8. Nota curta de responsabilidade.",
     ]
 
     return {
@@ -331,6 +334,15 @@ def _build_local_fallback(
                     f"Forecast objetivo: {strongest_predictive['event_type']} em "
                     f"{strongest_predictive['time_window'].get('label', 'janela em formacao')}. "
                     f"{strongest_predictive['explanation']}"
+                ).strip()
+            )
+            paragraphs.append(
+                (
+                    "Vida real: "
+                    + " ".join(strongest_predictive.get("what_this_may_look_like_in_real_life", [])[:2])
+                    + f" Impacto: {strongest_predictive.get('impact', '')} "
+                    + f"Risco: {strongest_predictive.get('risk', '')} "
+                    + f"Acao: {strongest_predictive.get('recommended_action', '')}"
                 ).strip()
             )
 

@@ -2,6 +2,43 @@ export type Intensity = 'high' | 'medium' | 'low'
 
 export type BirthTimePrecision = 'exact' | 'window' | 'unknown'
 export type BirthTimeWindow = 'morning' | 'afternoon' | 'evening'
+export type RelationshipStatus =
+  | 'single'
+  | 'dating'
+  | 'engaged'
+  | 'married'
+  | 'separated'
+  | 'divorced'
+  | 'widowed'
+  | 'unknown'
+export type LivingStatus = 'alive' | 'deceased' | 'unknown'
+
+export type UserContext = {
+  relationship_status?: RelationshipStatus
+  current_partner_role?: 'girlfriend' | 'boyfriend' | 'wife' | 'husband' | 'partner' | 'unknown'
+  has_children?: boolean | null
+  father_status?: LivingStatus
+  mother_status?: LivingStatus
+}
+
+export type RelatedPerson = {
+  name: string
+  relation:
+    | 'spouse'
+    | 'partner'
+    | 'boyfriend'
+    | 'girlfriend'
+    | 'father'
+    | 'mother'
+    | 'child'
+    | 'friend'
+    | 'sibling'
+    | 'in_law'
+    | 'other'
+  birth_date?: string
+  birth_time?: string
+  birth_time_precision?: BirthTimePrecision | null
+}
 
 export type MapaRequest = {
   date: string
@@ -14,6 +51,8 @@ export type MapaRequest = {
   reference_date?: string
   birth_time_precision?: BirthTimePrecision | null
   birth_time_window?: BirthTimeWindow | null
+  user_context?: UserContext
+  related_people?: RelatedPerson[]
 }
 
 export type TimeWindow = {
@@ -341,6 +380,28 @@ export type TurningPoint = {
   summary: string
 }
 
+export type PredictiveInsight = {
+  category_key: string
+  event_type: string
+  probability_level: 'Discard' | 'Weak' | 'Moderate' | 'High'
+  independent_signals: number
+  probability_score: number
+  time_window: TimeWindow & { label: string }
+  techniques: string[]
+  signals: string[]
+  rule_hits: string[]
+  exact_dates: string[]
+  explanation: string
+  domains: string[]
+  what_is_happening: string
+  what_this_may_look_like_in_real_life: string[]
+  possible_scenarios: string[]
+  impact: string
+  risk: string
+  recommended_action: string
+  formatted_block: string
+}
+
 export type PurposeForecast = {
   summary: string
   current_focus: string
@@ -391,6 +452,8 @@ export type MapaResponse = {
   }
   analysis?: {
     profile_quality: ProfileQuality
+    user_context?: UserContext
+    related_people?: RelatedPerson[]
     theme_map: Record<string, string>
     transits?: {
       reference_utc: string
@@ -442,6 +505,15 @@ export type MapaResponse = {
   confidence: AnalysisConfidence
   uncertainties: Uncertainty[]
   techniques_used: string[]
+  predictive_insights?: {
+    detected_events: PredictiveInsight[]
+    watchlist: PredictiveInsight[]
+    summary: {
+      detected_count: number
+      watchlist_count: number
+      strongest_category: string | null
+    }
+  }
   events: ForecastEvent[]
   event_summary: {
     total: number

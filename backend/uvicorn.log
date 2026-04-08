@@ -1,0 +1,9 @@
+INFO:     127.0.0.1:52804 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52815 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52816 - "POST /mapa HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53829 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53829 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:63445 - "OPTIONS /mapa HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63445 - "POST /mapa HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60049 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61536 - "GET /health HTTP/1.1" 200 OK

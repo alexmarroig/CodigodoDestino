@@ -5,7 +5,6 @@ from datetime import date, datetime, timezone
 from time import perf_counter
 from typing import Any
 
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from astro.aspects import calculate_aspects
@@ -65,6 +64,8 @@ def _normalize_payload(payload: dict[str, Any], reference_date: date) -> dict[st
         normalized["time"] = payload["time"].isoformat() if hasattr(payload["time"], "isoformat") else str(payload["time"])
     normalized["birth_time_precision"] = normalized.get("birth_time_precision")
     normalized["birth_time_window"] = normalized.get("birth_time_window")
+    normalized["user_context"] = normalized.get("user_context") or {}
+    normalized["related_people"] = list(normalized.get("related_people") or [])
     return normalized
 
 

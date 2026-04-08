@@ -887,6 +887,8 @@ def build_multilayer_analysis(
 
     return {
         "profile_quality": profile_quality,
+        "user_context": dict(payload.get("user_context") or {}),
+        "related_people": list(payload.get("related_people") or []),
         "theme_map": THEME_MAP,
         "natal": {
             "planet_houses": natal_planet_houses,

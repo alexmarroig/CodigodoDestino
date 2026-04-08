@@ -130,5 +130,12 @@ def test_predictive_insights_require_three_independent_signals() -> None:
     assert detected["career"]["independent_signals"] == 4
     assert detected["career"]["time_window"]["label"]
     assert "convergence" in detected["career"]["explanation"].lower()
+    assert detected["career"]["what_is_happening"]
+    assert len(detected["career"]["what_this_may_look_like_in_real_life"]) >= 2
+    assert len(detected["career"]["possible_scenarios"]) >= 2
+    assert detected["career"]["impact"]
+    assert detected["career"]["risk"]
+    assert detected["career"]["recommended_action"]
+    assert "Timeframe:" in detected["career"]["formatted_block"]
     assert watchlist["health"]["probability_level"] == "Weak"
     assert watchlist["health"]["independent_signals"] == 2

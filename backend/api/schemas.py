@@ -8,6 +8,50 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+class UserContextRequest(BaseModel):
+    relationship_status: Literal[
+        "single",
+        "dating",
+        "engaged",
+        "married",
+        "separated",
+        "divorced",
+        "widowed",
+        "unknown",
+    ] | None = None
+    current_partner_role: Literal[
+        "girlfriend",
+        "boyfriend",
+        "wife",
+        "husband",
+        "partner",
+        "unknown",
+    ] | None = None
+    has_children: bool | None = None
+    father_status: Literal["alive", "deceased", "unknown"] | None = None
+    mother_status: Literal["alive", "deceased", "unknown"] | None = None
+
+
+class RelatedPersonRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=80)
+    relation: Literal[
+        "spouse",
+        "partner",
+        "boyfriend",
+        "girlfriend",
+        "father",
+        "mother",
+        "child",
+        "friend",
+        "sibling",
+        "in_law",
+        "other",
+    ]
+    birth_date: DateType | None = None
+    birth_time: TimeType | None = None
+    birth_time_precision: Literal["exact", "window", "unknown"] | None = None
+
+
 class MapaRequest(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
@@ -38,6 +82,8 @@ class MapaRequest(BaseModel):
     )
     reference_date: DateType | None = Field(default=None, description="Optional forecast anchor date.")
     user_id: int | None = None
+    user_context: UserContextRequest | None = None
+    related_people: list[RelatedPersonRequest] | None = None
 
     @field_validator("timezone")
     @classmethod

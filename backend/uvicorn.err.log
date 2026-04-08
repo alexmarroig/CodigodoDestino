@@ -1,7 +1,15 @@
-INFO:     Started server process [41044]
+INFO:     Started server process [13052]
 INFO:     Waiting for application startup.
-{"timestamp": "2026-04-04T21:44:09.689850Z", "level": "WARNING", "message": "database_unavailable_falling_back_to_sqlite", "logger": "db.session"}
+{"timestamp": "2026-04-08T22:57:54.456284Z", "level": "WARNING", "message": "database_unavailable_falling_back_to_sqlite", "logger": "db.session"}
 INFO:     Application startup complete.
-ERROR:    [Errno 10048] error while attempting to bind on address ('127.0.0.1', 8000): normalmente é permitida apenas uma utilização de cada endereço de soquete (protocolo/endereço de rede/porta)
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+{"timestamp": "2026-04-08T22:58:27.141313Z", "level": "WARNING", "message": "redis_unavailable_falling_back_to_null_cache", "logger": "db.session"}
+{"timestamp": "2026-04-08T22:58:27.156280Z", "level": "INFO", "message": "mapa_request_received", "logger": "api.main", "request_id": "87f945bc-9c20-45a0-967c-204bc7271daf"}
+{"timestamp": "2026-04-08T22:58:32.389058Z", "level": "INFO", "message": "HTTP Request: POST https://openrouter.ai/api/v1/chat/completions \"HTTP/1.1 400 Bad Request\"", "logger": "httpx"}
+{"timestamp": "2026-04-08T22:58:33.511373Z", "level": "INFO", "message": "HTTP Request: POST https://openrouter.ai/api/v1/chat/completions \"HTTP/1.1 400 Bad Request\"", "logger": "httpx"}
+{"timestamp": "2026-04-08T22:58:33.604755Z", "level": "INFO", "message": "mapa_processing_success", "logger": "api.main", "request_id": "87f945bc-9c20-45a0-967c-204bc7271daf"}
+{"timestamp": "2026-04-08T23:16:53.907570Z", "level": "WARNING", "message": "redis_unavailable_falling_back_to_null_cache", "logger": "db.session"}
+{"timestamp": "2026-04-08T23:16:53.911240Z", "level": "INFO", "message": "mapa_request_received", "logger": "api.main", "request_id": "6d4fa00d-ee44-4a87-b8da-52546ccfe5de"}
+{"timestamp": "2026-04-08T23:17:00.611565Z", "level": "INFO", "message": "HTTP Request: POST https://openrouter.ai/api/v1/chat/completions \"HTTP/1.1 400 Bad Request\"", "logger": "httpx"}
+{"timestamp": "2026-04-08T23:17:01.583037Z", "level": "INFO", "message": "HTTP Request: POST https://openrouter.ai/api/v1/chat/completions \"HTTP/1.1 400 Bad Request\"", "logger": "httpx"}
+{"timestamp": "2026-04-08T23:17:01.698919Z", "level": "INFO", "message": "mapa_processing_success", "logger": "api.main", "request_id": "6d4fa00d-ee44-4a87-b8da-52546ccfe5de"}

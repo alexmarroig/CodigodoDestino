@@ -77,10 +77,7 @@ def mapa(
     payload_data = payload.model_dump(mode="json", exclude_none=True)
     reference_date = payload.reference_date or datetime.now(timezone.utc).date()
 
-    logger.info(
-        "mapa_request_received",
-        extra={"request_id": request_id},
-    )
+    logger.info("mapa_request_received", extra={"request_id": request_id})
 
     try:
         result = run_pipeline(
@@ -93,43 +90,28 @@ def mapa(
     except AppError:
         raise
     except Exception as exc:
-        logger.exception(
-            "mapa_processing_failed",
-            extra={"request_id": request_id},
-        )
+        logger.exception("mapa_processing_failed", extra={"request_id": request_id})
         raise AppError(
             code="pipeline_error",
             message="Unexpected error while processing /mapa.",
             status_code=500,
         ) from exc
 
-    logger.info(
-        "mapa_processing_success",
-        extra={"request_id": request_id},
-    )
+    logger.info("mapa_processing_success", extra={"request_id": request_id})
     return result
 
 
 @app.post("/horaria")
-def horaria(
-    payload: HoraryRequest,
-    request: Request,
-) -> dict:
+def horaria(payload: HoraryRequest, request: Request) -> dict:
     request_id = request.state.request_id
     payload_data = payload.model_dump(mode="json", exclude_none=True)
 
-    logger.info(
-        "horaria_request_received",
-        extra={"request_id": request_id},
-    )
+    logger.info("horaria_request_received", extra={"request_id": request_id})
 
     try:
         result = analyze_horary(payload_data)
     except Exception as exc:
-        logger.exception(
-            "horaria_processing_failed",
-            extra={"request_id": request_id},
-        )
+        logger.exception("horaria_processing_failed", extra={"request_id": request_id})
         raise AppError(
             code="horary_error",
             message="Unexpected error while processing /horaria.",
@@ -137,10 +119,7 @@ def horaria(
         ) from exc
 
     result["request_id"] = request_id
-    logger.info(
-        "horaria_processing_success",
-        extra={"request_id": request_id},
-    )
+    logger.info("horaria_processing_success", extra={"request_id": request_id})
     return result
 
 
@@ -153,20 +132,14 @@ def life_event(
     request_id = request.state.request_id
     payload_data = payload.model_dump(mode="json", exclude_none=True)
 
-    logger.info(
-        "life_event_received",
-        extra={"request_id": request_id},
-    )
+    logger.info("life_event_received", extra={"request_id": request_id})
 
     try:
         result = save_life_event(payload_data, db)
     except AppError:
         raise
     except Exception as exc:
-        logger.exception(
-            "life_event_failed",
-            extra={"request_id": request_id},
-        )
+        logger.exception("life_event_failed", extra={"request_id": request_id})
         raise AppError(
             code="life_event_error",
             message="Unexpected error while processing /life-event.",
@@ -174,10 +147,7 @@ def life_event(
         ) from exc
 
     result["request_id"] = request_id
-    logger.info(
-        "life_event_success",
-        extra={"request_id": request_id},
-    )
+    logger.info("life_event_success", extra={"request_id": request_id})
     return result
 
 
@@ -190,20 +160,14 @@ def feedback_event(
     request_id = request.state.request_id
     payload_data = payload.model_dump(mode="json", exclude_none=True)
 
-    logger.info(
-        "feedback_event_received",
-        extra={"request_id": request_id},
-    )
+    logger.info("feedback_event_received", extra={"request_id": request_id})
 
     try:
         result = save_feedback_event(payload_data, db)
     except AppError:
         raise
     except Exception as exc:
-        logger.exception(
-            "feedback_event_failed",
-            extra={"request_id": request_id},
-        )
+        logger.exception("feedback_event_failed", extra={"request_id": request_id})
         raise AppError(
             code="feedback_event_error",
             message="Unexpected error while processing /feedback-event.",
@@ -211,8 +175,5 @@ def feedback_event(
         ) from exc
 
     result["request_id"] = request_id
-    logger.info(
-        "feedback_event_success",
-        extra={"request_id": request_id},
-    )
+    logger.info("feedback_event_success", extra={"request_id": request_id})
     return result
