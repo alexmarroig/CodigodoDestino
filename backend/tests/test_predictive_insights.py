@@ -173,8 +173,10 @@ def test_predictive_insights_boosts_rupture_when_separated() -> None:
     analysis["user_context"] = {"relationship_status": "separated"}
     baseline = build_predictive_insights(_analysis_fixture(), reference_date=date(2026, 4, 4))
     boosted = build_predictive_insights(analysis, reference_date=date(2026, 4, 4))
-    rupture = next((item for item in boosted["detected_events"] if item["category_key"] == "rupture"), None)
+    boosted_events = boosted["detected_events"] + boosted["watchlist"]
+    rupture = next((item for item in boosted_events if item["category_key"] == "rupture"), None)
     assert rupture is not None
-    baseline_rupture = next((item for item in baseline["detected_events"] if item["category_key"] == "rupture"), None)
+    baseline_events = baseline["detected_events"] + baseline["watchlist"]
+    baseline_rupture = next((item for item in baseline_events if item["category_key"] == "rupture"), None)
     if baseline_rupture:
         assert rupture["probability_score"] >= baseline_rupture["probability_score"]

@@ -18,9 +18,12 @@ export type FamilyRelationshipQuality = 'close' | 'distant' | 'conflict' | 'abse
 export type UserContext = {
   relationship_status?: RelationshipStatus
   current_partner_role?: 'girlfriend' | 'boyfriend' | 'wife' | 'husband' | 'partner' | 'unknown'
+  employment_status?: 'employed' | 'unemployed' | 'self_employed' | 'student' | 'retired' | null
   has_children?: boolean | null
   father_status?: LivingStatus
   mother_status?: LivingStatus
+  father_present?: boolean | null
+  mother_present?: boolean | null
   current_city?: string
   lives_alone?: boolean | null
   father_relationship?: FamilyRelationshipQuality
@@ -38,7 +41,7 @@ export type UserContext = {
   country_change?: boolean | null
   financial_crisis?: boolean | null
   important_death?: string
-  living_situation?: string
+  living_situation?: string | 'alone' | 'with_partner' | 'with_family' | 'shared' | null
 }
 
 export type DestinyCertaintyLevel = 'chance' | 'tendency' | 'must' | 'will'
@@ -71,6 +74,13 @@ export type RelatedPerson = {
   birth_date?: string
   birth_time?: string
   birth_time_precision?: BirthTimePrecision | null
+}
+
+export type RealityTranslation = {
+  scenarios: string[]
+  impact: string
+  risk: string
+  action: string
 }
 
 export type MapaRequest = {
@@ -127,6 +137,7 @@ export type ForecastEvent = {
   narrative_hint: string
   counter_signals?: string[]
   context: Record<string, unknown>
+  reality_translation?: RealityTranslation
   rank?: number
 }
 
