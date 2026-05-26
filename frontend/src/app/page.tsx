@@ -9,7 +9,7 @@ import { BirthForm } from '@/components/BirthForm'
 import { ErrorStatePanel } from '@/components/ErrorStatePanel'
 import { LivingBackground } from '@/components/LivingBackground'
 import { LoadingSkeleton } from '@/components/LoadingSkeleton'
-import { ResultsDashboard } from '@/components/ResultsDashboard'
+import { DestinyReading } from '@/components/DestinyReading'
 import { SplashScreen } from '@/components/SplashScreen'
 import { ApiError, requestMapa } from '@/lib/api'
 import { MapaRequest, MapaResponse } from '@/types/mapa'
@@ -200,7 +200,7 @@ export default function Home() {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.36 }}
               >
-                <ResultsDashboard result={deferredResult} onRestart={handleRestart} />
+                <DestinyReading result={deferredResult} onRestart={handleRestart} />
               </motion.div>
             ) : error ? (
               <motion.div
@@ -232,9 +232,9 @@ export default function Home() {
                 className="cosmic-shell rounded-[36px] px-6 py-10 text-center sm:px-10"
               >
                 <p className="text-xs uppercase tracking-[0.36em] text-[var(--muted-soft)]">Quando quiser comecar</p>
-                <h2 className="mt-5 text-3xl font-semibold sm:text-5xl">Sua leitura se abre em tres passos suaves.</h2>
+                <h2 className="mt-5 text-3xl font-semibold sm:text-5xl">Sua leitura se abre em seis passos curtos.</h2>
                 <p className="mx-auto mt-4 max-w-2xl text-sm text-[var(--muted)] sm:text-base">
-                  Primeiro a data, depois a hora, e por fim a cidade. Sem termos tecnicos e sem excesso visual.
+                  Nascimento, vida hoje e histórico emocional. Depois, doze seções claras sobre o seu destino.
                 </p>
                 <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                   <motion.button

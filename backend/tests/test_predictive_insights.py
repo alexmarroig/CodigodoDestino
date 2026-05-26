@@ -126,16 +126,55 @@ def test_predictive_insights_require_three_independent_signals() -> None:
     detected = {item["category_key"]: item for item in result["detected_events"]}
     watchlist = {item["category_key"]: item for item in result["watchlist"]}
 
-    assert detected["career"]["probability_level"] == "High"
+    assert detected["career"]["probability_level"] == "Alta"
+    assert detected["career"]["certainty_level"] == "will"
+    assert detected["career"]["certainty_label"] == "Vai acontecer"
     assert detected["career"]["independent_signals"] == 4
+    assert detected["career"]["what_is_happening"].startswith("Isso vai acontecer")
     assert detected["career"]["time_window"]["label"]
-    assert "convergence" in detected["career"]["explanation"].lower()
+    assert "convergencia" in detected["career"]["explanation"].lower()
     assert detected["career"]["what_is_happening"]
     assert len(detected["career"]["what_this_may_look_like_in_real_life"]) >= 2
     assert len(detected["career"]["possible_scenarios"]) >= 2
     assert detected["career"]["impact"]
     assert detected["career"]["risk"]
     assert detected["career"]["recommended_action"]
-    assert "Timeframe:" in detected["career"]["formatted_block"]
-    assert watchlist["health"]["probability_level"] == "Weak"
+    assert "Janela de tempo:" in detected["career"]["formatted_block"]
+    assert watchlist["health"]["probability_level"] == "Baixa"
+    assert watchlist["health"]["certainty_level"] == "tendency"
     assert watchlist["health"]["independent_signals"] == 2
+
+
+def test_predictive_insights_boosts_rupture_when_separated() -> None:
+    analysis = _analysis_fixture()
+    analysis["signals"].extend(
+        [
+            {
+                "technique": "transits",
+                "domain": "relacionamentos",
+                "label": "Urano na casa 7",
+                "weight": 0.82,
+                "polarity": "challenging",
+                "time_window": {"start": "2026-04-01", "end": "2026-06-01", "peak": "2026-05-01"},
+            },
+            {
+                "technique": "progressions",
+                "domain": "relacionamentos",
+                "label": "Lua progredida testa vinculo",
+                "weight": 0.71,
+                "polarity": "challenging",
+                "time_window": {"start": "2026-04-01", "end": "2026-07-01", "peak": "2026-05-15"},
+            },
+        ]
+    )
+    analysis["rule_hits"].append(
+        {"code": "breakup", "label": "Ruptura afetiva", "domain": "relacionamentos", "weight": 4.8}
+    )
+    analysis["user_context"] = {"relationship_status": "separated"}
+    baseline = build_predictive_insights(_analysis_fixture(), reference_date=date(2026, 4, 4))
+    boosted = build_predictive_insights(analysis, reference_date=date(2026, 4, 4))
+    rupture = next((item for item in boosted["detected_events"] if item["category_key"] == "rupture"), None)
+    assert rupture is not None
+    baseline_rupture = next((item for item in baseline["detected_events"] if item["category_key"] == "rupture"), None)
+    if baseline_rupture:
+        assert rupture["probability_score"] >= baseline_rupture["probability_score"]

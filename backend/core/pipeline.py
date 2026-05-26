@@ -22,7 +22,9 @@ from engine.analysis import assess_profile_quality, build_multilayer_analysis, g
 from engine.events import build_domain_analysis, generate_events, summarize_events
 from engine.life_story_engine import build_life_story
 from engine.narrative import build_narrative_prompt, generate_narrative_with_cache
+from engine.destiny_narrative import build_destiny_sections
 from engine.predictive_insights import build_predictive_insights
+from core.context_memory import persist_user_context_memory
 from engine.question_engine import suggest_feedback_questions
 from engine.rules_engine import build_specialized_insights
 from engine.timeline import build_forecast_360, inject_exact_timing_into_forecast
@@ -81,6 +83,20 @@ def _hydrate_cached_response(cached_response: dict[str, Any], request_id: str, c
     }
     cached_response.setdefault("feedback_questions", [])
     cached_response.setdefault("user_rule_overrides", {})
+    if "destiny_sections" not in cached_response and isinstance(cached_response.get("analysis"), dict):
+        input_block = dict(cached_response.get("input") or {})
+        reference_date = date.fromisoformat(str(input_block.get("reference_date")))
+        cached_response["destiny_sections"] = build_destiny_sections(
+            payload=input_block,
+            computed=cached_response.get("computed", {}),
+            analysis=cached_response["analysis"],
+            narrative=cached_response.get("narrative", {}),
+            forecast_360=cached_response.get("forecast_360", {}),
+            timeline=cached_response.get("timeline", {}),
+            life_episodes=cached_response.get("life_episodes", []),
+            turning_points=cached_response.get("turning_points", []),
+            reference_date=reference_date,
+        )
     if "predictive_insights" not in cached_response and isinstance(cached_response.get("analysis"), dict):
         input_block = dict(cached_response.get("input") or {})
         reference_date = date.fromisoformat(str(input_block.get("reference_date")))
@@ -374,6 +390,26 @@ def run_pipeline(
     )
     narrative = generate_narrative_with_cache(prompt_data, cache)
 
+    destiny_sections = build_destiny_sections(
+        payload=normalized_payload,
+        computed={
+            "utc": computed_snapshot["utc"],
+            "astrology": computed_snapshot["astrology"],
+            "aspects": computed_snapshot["aspects"],
+            "numerology": computed_snapshot["numerology"],
+        },
+        analysis=computed_snapshot["analysis"],
+        narrative=narrative,
+        forecast_360=computed_snapshot["forecast_360"],
+        timeline=computed_snapshot["timeline"],
+        life_episodes=computed_snapshot["life_episodes"],
+        turning_points=computed_snapshot["turning_points"],
+        reference_date=reference_date,
+    )
+
+    if normalized_payload.get("user_id") and normalized_payload.get("user_context"):
+        persist_user_context_memory(normalized_payload, db)
+
     response = {
         "request_id": request_id,
         "input": normalized_payload,
@@ -401,6 +437,7 @@ def run_pipeline(
         "life_events": computed_snapshot["life_events"],
         "life_story": computed_snapshot["life_story"],
         "narrative": narrative,
+        "destiny_sections": destiny_sections,
         "metadata": {
             "engine_version": settings.engine_version,
             "cache_hit": False,

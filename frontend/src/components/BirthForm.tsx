@@ -4,7 +4,7 @@ import { FormEvent, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 
 import { BRAZIL_CITY_OPTIONS } from '@/lib/brazilCities'
-import { MapaRequest } from '@/types/mapa'
+import { FamilyRelationshipQuality, MapaRequest } from '@/types/mapa'
 
 type BirthFormProps = {
   id?: string
@@ -18,11 +18,28 @@ type FormState = {
   timeUnknown: boolean
   cityQuery: string
   selectedCityId: string | null
+  currentCity: string
+  livesAlone: 'yes' | 'no' | 'unknown'
   relationshipStatus: NonNullable<MapaRequest['user_context']>['relationship_status']
   currentPartnerRole: NonNullable<MapaRequest['user_context']>['current_partner_role']
   hasChildren: 'yes' | 'no' | 'unknown'
   fatherStatus: NonNullable<MapaRequest['user_context']>['father_status']
   motherStatus: NonNullable<MapaRequest['user_context']>['mother_status']
+  fatherRelationship: FamilyRelationshipQuality
+  motherRelationship: FamilyRelationshipQuality
+  hasSiblings: 'yes' | 'no' | 'unknown'
+  experiencedAdoption: boolean
+  experiencedAbandonment: boolean
+  majorTraumaNotes: string
+  majorLossNotes: string
+  markedSeparation: boolean
+  experiencedBetrayal: boolean
+  experiencedDepression: boolean
+  recurringFeeling: string
+  cityChange: boolean
+  countryChange: boolean
+  financialCrisis: boolean
+  importantDeath: string
   relatedPeople: RelatedPersonFormState[]
 }
 
@@ -35,17 +52,36 @@ type RelatedPersonFormState = {
   birthTimeUnknown: boolean
 }
 
+const TOTAL_STEPS = 6
+
 const initialState: FormState = {
   date: '1995-03-10',
   time: '',
   timeUnknown: false,
   cityQuery: '',
   selectedCityId: null,
+  currentCity: '',
+  livesAlone: 'unknown',
   relationshipStatus: 'unknown',
   currentPartnerRole: 'unknown',
   hasChildren: 'unknown',
   fatherStatus: 'unknown',
   motherStatus: 'unknown',
+  fatherRelationship: 'unknown',
+  motherRelationship: 'unknown',
+  hasSiblings: 'unknown',
+  experiencedAdoption: false,
+  experiencedAbandonment: false,
+  majorTraumaNotes: '',
+  majorLossNotes: '',
+  markedSeparation: false,
+  experiencedBetrayal: false,
+  experiencedDepression: false,
+  recurringFeeling: '',
+  cityChange: false,
+  countryChange: false,
+  financialCrisis: false,
+  importantDeath: '',
   relatedPeople: [],
 }
 
@@ -198,6 +234,29 @@ export function BirthForm({ id, onSubmit, pending }: BirthFormProps) {
           values.hasChildren === 'unknown' ? null : values.hasChildren === 'yes',
         father_status: values.fatherStatus ?? 'unknown',
         mother_status: values.motherStatus ?? 'unknown',
+        current_city: values.currentCity.trim() || undefined,
+        lives_alone: values.livesAlone === 'unknown' ? null : values.livesAlone === 'yes',
+        father_relationship: values.fatherRelationship,
+        mother_relationship: values.motherRelationship,
+        has_siblings: values.hasSiblings === 'unknown' ? null : values.hasSiblings === 'yes',
+        experienced_adoption: values.experiencedAdoption || null,
+        experienced_abandonment: values.experiencedAbandonment || null,
+        major_trauma_notes: values.majorTraumaNotes.trim() || undefined,
+        major_loss_notes: values.majorLossNotes.trim() || undefined,
+        marked_separation: values.markedSeparation || null,
+        experienced_betrayal: values.experiencedBetrayal || null,
+        experienced_depression: values.experiencedDepression || null,
+        recurring_feeling: values.recurringFeeling.trim() || undefined,
+        city_change: values.cityChange || null,
+        country_change: values.countryChange || null,
+        financial_crisis: values.financialCrisis || null,
+        important_death: values.importantDeath.trim() || undefined,
+        living_situation:
+          values.livesAlone === 'yes'
+            ? 'Mora sozinho(a)'
+            : values.livesAlone === 'no'
+              ? 'Nao mora sozinho(a)'
+              : undefined,
       },
       related_people: values.relatedPeople
         .filter((person) => person.name.trim())
@@ -228,7 +287,7 @@ export function BirthForm({ id, onSubmit, pending }: BirthFormProps) {
           <div className="space-y-3">
             <p className="text-xs uppercase tracking-[0.4em] text-[var(--muted-soft)]">Sua leitura</p>
             <div className="flex gap-2">
-              {[0, 1, 2, 3].map((index) => (
+              {Array.from({ length: TOTAL_STEPS }, (_, index) => index).map((index) => (
                 <span
                   key={index}
                   className={`h-1.5 w-12 rounded-full ${
@@ -238,7 +297,7 @@ export function BirthForm({ id, onSubmit, pending }: BirthFormProps) {
               ))}
             </div>
           </div>
-          <p className="text-sm text-[var(--muted)]">Quatro passos para abrir a leitura.</p>
+          <p className="text-sm text-[var(--muted)]">Seis passos para abrir a leitura.</p>
         </div>
 
         <div className="section-rule my-8" />
@@ -439,7 +498,7 @@ export function BirthForm({ id, onSubmit, pending }: BirthFormProps) {
 
           {step === 3 ? (
             <motion.section
-              key="step-context"
+              key="step-life-today"
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -18 }}
@@ -447,16 +506,37 @@ export function BirthForm({ id, onSubmit, pending }: BirthFormProps) {
               className="space-y-8"
             >
               <div className="space-y-4">
-                <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Mini contexto</p>
+                <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Quarto passo</p>
                 <div className="space-y-3">
-                  <h2 className="text-4xl font-semibold leading-[0.92] sm:text-5xl">Algumas pistas da sua vida hoje</h2>
+                  <h2 className="text-4xl font-semibold leading-[0.92] sm:text-5xl">Sua vida hoje</h2>
                   <p className="max-w-2xl text-base text-[var(--muted)] sm:text-lg">
-                    Isso ajuda o motor a entender melhor se a leitura deve priorizar namoro, casamento, pais, filhos e estrutura familiar.
+                    Isso muda como lemos seu destino — não o mapa natal.
                   </p>
                 </div>
               </div>
 
               <div className="grid gap-4 lg:grid-cols-2">
+                <label className="question-shell block px-4 py-3 lg:col-span-2">
+                  <span className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted-soft)]">Onde você mora hoje?</span>
+                  <input
+                    type="text"
+                    value={values.currentCity}
+                    onChange={(event) => setValues((current) => ({ ...current, currentCity: event.target.value }))}
+                    placeholder="Cidade atual"
+                    className="mt-3 w-full border-0 bg-transparent px-2 py-3 text-base text-[var(--fg)]"
+                  />
+                </label>
+
+                <SelectField
+                  label="Mora sozinho(a)?"
+                  value={values.livesAlone}
+                  onChange={(value) => setValues((current) => ({ ...current, livesAlone: value as FormState['livesAlone'] }))}
+                  options={[
+                    ['unknown', 'Prefiro não informar'],
+                    ['yes', 'Sim'],
+                    ['no', 'Não'],
+                  ]}
+                />
                 <SelectField
                   label="Seu estado afetivo"
                   value={values.relationshipStatus ?? 'unknown'}
@@ -516,31 +596,193 @@ export function BirthForm({ id, onSubmit, pending }: BirthFormProps) {
                   ]}
                 />
 
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <motion.button
+                  type="button"
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.985 }}
+                  onClick={() => goToStep(2)}
+                  className="ritual-button-muted inline-flex items-center justify-center rounded-full px-6 py-3.5 text-sm font-semibold"
+                >
+                  Voltar
+                </motion.button>
+                <motion.button
+                  type="button"
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.985 }}
+                  onClick={() => goToStep(4)}
+                  className="ritual-button inline-flex items-center justify-center rounded-full px-6 py-3.5 text-sm font-semibold"
+                >
+                  Continuar
+                </motion.button>
+              </div>
+            </motion.section>
+          ) : null}
+
+          {step === 4 ? (
+            <motion.section
+              key="step-family"
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -18 }}
+              transition={{ duration: 0.28 }}
+              className="space-y-8"
+            >
+              <div className="space-y-4">
+                <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Quinto passo</p>
+                <h2 className="text-4xl font-semibold leading-[0.92] sm:text-5xl">Família</h2>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
                 <SelectField
-                  label="Seu pai esta vivo?"
+                  label="Seu pai está vivo?"
                   value={values.fatherStatus ?? 'unknown'}
                   onChange={(value) => setValues((current) => ({ ...current, fatherStatus: value as FormState['fatherStatus'] }))}
                   options={[
-                    ['unknown', 'Prefiro nao informar'],
+                    ['unknown', 'Prefiro não informar'],
                     ['alive', 'Sim'],
-                    ['deceased', 'Nao'],
+                    ['deceased', 'Não'],
                   ]}
                 />
-
                 <SelectField
-                  label="Sua mae esta viva?"
+                  label="Relação com o pai"
+                  value={values.fatherRelationship}
+                  onChange={(value) =>
+                    setValues((current) => ({ ...current, fatherRelationship: value as FamilyRelationshipQuality }))
+                  }
+                  options={[
+                    ['unknown', 'Prefiro não informar'],
+                    ['close', 'Próxima'],
+                    ['distant', 'Distante'],
+                    ['conflict', 'Conflito'],
+                    ['absent', 'Ausente'],
+                  ]}
+                />
+                <SelectField
+                  label="Sua mãe está viva?"
                   value={values.motherStatus ?? 'unknown'}
                   onChange={(value) => setValues((current) => ({ ...current, motherStatus: value as FormState['motherStatus'] }))}
                   options={[
-                    ['unknown', 'Prefiro nao informar'],
+                    ['unknown', 'Prefiro não informar'],
                     ['alive', 'Sim'],
-                    ['deceased', 'Nao'],
+                    ['deceased', 'Não'],
                   ]}
+                />
+                <SelectField
+                  label="Relação com a mãe"
+                  value={values.motherRelationship}
+                  onChange={(value) =>
+                    setValues((current) => ({ ...current, motherRelationship: value as FamilyRelationshipQuality }))
+                  }
+                  options={[
+                    ['unknown', 'Prefiro não informar'],
+                    ['close', 'Próxima'],
+                    ['distant', 'Distante'],
+                    ['conflict', 'Conflito'],
+                    ['absent', 'Ausente'],
+                  ]}
+                />
+                <SelectField
+                  label="Tem irmãos?"
+                  value={values.hasSiblings}
+                  onChange={(value) => setValues((current) => ({ ...current, hasSiblings: value as FormState['hasSiblings'] }))}
+                  options={[
+                    ['unknown', 'Prefiro não informar'],
+                    ['yes', 'Sim'],
+                    ['no', 'Não'],
+                  ]}
+                />
+                <CheckboxField
+                  label="Adoção ou família recomposta"
+                  checked={values.experiencedAdoption}
+                  onChange={(checked) => setValues((current) => ({ ...current, experiencedAdoption: checked }))}
+                />
+                <CheckboxField
+                  label="Abandono emocional marcante"
+                  checked={values.experiencedAbandonment}
+                  onChange={(checked) => setValues((current) => ({ ...current, experiencedAbandonment: checked }))}
                 />
               </div>
 
-              <div className="rounded-[24px] border border-[var(--line)] bg-white/5 px-4 py-4 text-sm text-[var(--muted)]">
-                Esse bloco nao muda o mapa natal. Ele serve como contexto para diminuir ambiguidade na leitura de relacionamentos e familia.
+              <div className="flex flex-wrap gap-3">
+                <motion.button type="button" onClick={() => goToStep(3)} className="ritual-button-muted rounded-full px-6 py-3.5 text-sm font-semibold">
+                  Voltar
+                </motion.button>
+                <motion.button type="button" onClick={() => goToStep(5)} className="ritual-button rounded-full px-6 py-3.5 text-sm font-semibold">
+                  Continuar
+                </motion.button>
+              </div>
+            </motion.section>
+          ) : null}
+
+          {step === 5 ? (
+            <motion.section
+              key="step-emotional"
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -18 }}
+              transition={{ duration: 0.28 }}
+              className="space-y-8"
+            >
+              <div className="space-y-4">
+                <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Sexto passo</p>
+                <h2 className="text-4xl font-semibold leading-[0.92] sm:text-5xl">Histórico emocional</h2>
+                <p className="max-w-2xl text-sm text-[var(--muted)]">Opcional, mas deixa a leitura menos genérica.</p>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <TextAreaField
+                  label="Maior trauma ou ferida (1 linha)"
+                  value={values.majorTraumaNotes}
+                  onChange={(value) => setValues((current) => ({ ...current, majorTraumaNotes: value }))}
+                />
+                <TextAreaField
+                  label="Maior perda (1 linha)"
+                  value={values.majorLossNotes}
+                  onChange={(value) => setValues((current) => ({ ...current, majorLossNotes: value }))}
+                />
+                <TextAreaField
+                  label="Morte importante na família"
+                  value={values.importantDeath}
+                  onChange={(value) => setValues((current) => ({ ...current, importantDeath: value }))}
+                />
+                <TextAreaField
+                  label="Sensação que mais repete"
+                  value={values.recurringFeeling}
+                  onChange={(value) => setValues((current) => ({ ...current, recurringFeeling: value }))}
+                />
+                <CheckboxField
+                  label="Separação marcante"
+                  checked={values.markedSeparation}
+                  onChange={(checked) => setValues((current) => ({ ...current, markedSeparation: checked }))}
+                />
+                <CheckboxField
+                  label="Traição vivida"
+                  checked={values.experiencedBetrayal}
+                  onChange={(checked) => setValues((current) => ({ ...current, experiencedBetrayal: checked }))}
+                />
+                <CheckboxField
+                  label="Depressão ou crise emocional"
+                  checked={values.experiencedDepression}
+                  onChange={(checked) => setValues((current) => ({ ...current, experiencedDepression: checked }))}
+                />
+                <CheckboxField
+                  label="Mudança de cidade"
+                  checked={values.cityChange}
+                  onChange={(checked) => setValues((current) => ({ ...current, cityChange: checked }))}
+                />
+                <CheckboxField
+                  label="Mudança de país"
+                  checked={values.countryChange}
+                  onChange={(checked) => setValues((current) => ({ ...current, countryChange: checked }))}
+                />
+                <CheckboxField
+                  label="Crise financeira forte"
+                  checked={values.financialCrisis}
+                  onChange={(checked) => setValues((current) => ({ ...current, financialCrisis: checked }))}
+                />
               </div>
 
               <div className="space-y-4 rounded-[28px] border border-[var(--line)] bg-white/5 px-4 py-4 sm:px-5">
@@ -674,7 +916,7 @@ export function BirthForm({ id, onSubmit, pending }: BirthFormProps) {
                   type="button"
                   whileHover={{ y: -2 }}
                   whileTap={{ scale: 0.985 }}
-                  onClick={() => goToStep(2)}
+                  onClick={() => goToStep(4)}
                   className="ritual-button-muted inline-flex items-center justify-center rounded-full px-6 py-3.5 text-sm font-semibold"
                 >
                   Voltar
@@ -687,6 +929,50 @@ export function BirthForm({ id, onSubmit, pending }: BirthFormProps) {
         {validationError ? <p className="mt-6 text-sm text-[var(--danger)]">{validationError}</p> : null}
       </div>
     </motion.form>
+  )
+}
+
+function TextAreaField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <label className="question-shell block px-4 py-3 lg:col-span-1">
+      <span className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted-soft)]">{label}</span>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={2}
+        className="mt-3 w-full resize-none border-0 bg-transparent px-2 py-2 text-base text-[var(--fg)] outline-none"
+      />
+    </label>
+  )
+}
+
+function CheckboxField({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <label className="question-shell flex cursor-pointer items-center gap-3 px-4 py-4">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="h-4 w-4 rounded border-[var(--line)]"
+      />
+      <span className="text-sm text-[var(--fg)]">{label}</span>
+    </label>
   )
 }
 

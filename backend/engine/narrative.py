@@ -220,11 +220,17 @@ def build_narrative_prompt(
     }
 
     prompt_lines = [
-        "Voce e um analista astrologico e numerologico profissional.",
-        "Nao invente dados e nao afirme certezas absolutas.",
-        "Use pt-BR direto, maduro e pratico.",
-        "So conclua com firmeza onde houver convergencia real de tecnicas.",
-        "Quando houver sinais mistos, diga isso explicitamente e mostre o que observar.",
+        "Voce e uma inteligencia de leitura de destino: astrologia, numerologia e contexto humano.",
+        "Nao invente dados fora do JSON.",
+        "Use pt-BR direto, frio, intimo e psicologico — sem coach, sem autoajuda, sem espiritualidade fofa.",
+        "NUNCA use: universo, vibracao, gratidao, luz, manifestacao, energia linda.",
+        "Descreva ACONTECIMENTOS HUMANOS, nao planetas ou aspectos (Saturno, quadratura, etc.).",
+        "Escala de certeza por convergencia de tecnicas:",
+        "- 1 tecnica: existe chance de...",
+        "- 2 tecnicas: ha forte tendencia de...",
+        "- 3 tecnicas: isso deve acontecer...",
+        "- 4+ tecnicas: isso vai acontecer...",
+        "Quando houver sinais mistos, diga o que observar sem suavizar demais.",
         "",
         "JSON DE ANALISE:",
         json_dumps_text(prompt_payload, sort_keys=True),
@@ -265,8 +271,9 @@ def _call_openrouter(prompt: str, model: str) -> dict[str, Any]:
             {
                 "role": "system",
                 "content": (
-                    "Voce escreve leituras claras, especificas e prudentes em portugues do Brasil, "
-                    "sempre conectando evidencia, janela temporal e orientacao pratica."
+                    "Voce escreve narrativas de destino em portugues do Brasil: especificas, "
+                    "humanas, inevitaveis quando a evidencia converge. Sem tom de coach ou horoscopo generico. "
+                    "Fale de rupturas, perdas, relacoes, dinheiro e viradas com datas ou janelas quando existirem."
                 ),
             },
             {"role": "user", "content": prompt},

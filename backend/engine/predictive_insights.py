@@ -4,11 +4,16 @@ from datetime import date, datetime
 from typing import Any
 
 from engine.analysis import DOMAIN_LABELS
+from engine.certainty import (
+    CERTAINTY_LABELS,
+    apply_certainty_prefix,
+    certainty_from_signal_count,
+)
 
 CATEGORY_DEFINITIONS = [
     {
         "key": "health",
-        "event_type": "Health / illness",
+        "event_type": "Saude, doenca ou acidente",
         "domains": {"saude_rotina", "psicologico_espiritual"},
         "allowed_polarities": {"challenging", "mixed"},
         "rule_codes": {
@@ -20,7 +25,7 @@ CATEGORY_DEFINITIONS = [
     },
     {
         "key": "career",
-        "event_type": "Career changes / job opportunities",
+        "event_type": "Emprego, carreira ou perda de trabalho",
         "domains": {"carreira_status"},
         "allowed_polarities": {"supportive", "challenging", "mixed"},
         "rule_codes": {
@@ -36,7 +41,7 @@ CATEGORY_DEFINITIONS = [
     },
     {
         "key": "relationships",
-        "event_type": "Relationships / emotional events",
+        "event_type": "Relacionamento, namoro ou casamento",
         "domains": {"relacionamentos", "criatividade_afetos"},
         "allowed_polarities": {"supportive", "challenging", "mixed"},
         "rule_codes": {
@@ -55,7 +60,7 @@ CATEGORY_DEFINITIONS = [
     },
     {
         "key": "rupture",
-        "event_type": "Loss / rupture / separation",
+        "event_type": "Briga, ruptura ou separacao",
         "domains": {"relacionamentos", "familia_lar", "psicologico_espiritual"},
         "allowed_polarities": {"challenging", "mixed"},
         "rule_codes": {
@@ -70,7 +75,7 @@ CATEGORY_DEFINITIONS = [
     },
     {
         "key": "major_transitions",
-        "event_type": "Major life transitions",
+        "event_type": "Grande mudanca de vida",
         "domains": {
             "identidade",
             "crises_recursos",
@@ -92,67 +97,67 @@ CATEGORY_DEFINITIONS = [
 ]
 
 PROBABILITY_LEVELS = {
-    1: "Discard",
-    2: "Weak",
-    3: "Moderate",
-    4: "High",
+    1: "Descartar",
+    2: "Baixa",
+    3: "Moderada",
+    4: "Alta",
 }
 
 REALITY_TEMPLATES = {
     "health": {
-        "what": "Daily pressure is concentrating on routine, stamina, and emotional resilience.",
+        "what": "Ha pressao real sobre corpo, rotina e estabilidade emocional. O periodo pode trazer doenca leve, esgotamento ou risco maior de acidente se houver imprudencia.",
         "scenarios": [
-            "Work, family, or study demands pile up until sleep, appetite, or focus start to slip.",
-            "A minor physical issue, stress spike, or emotional crash forces a pause in the schedule.",
-            "The person notices that their body is reacting to overload before they consciously slow down.",
+            "Carga acumulada de trabalho, familia ou estudo derruba sono, foco e disposicao ate o corpo pedir pausa.",
+            "Stress, queda imunologica ou um mal-estar obriga a reduzir compromissos por alguns dias.",
+            "Se houver pressa, distração ou irritacao ao volante, aumenta o risco de acidente em transito ou pequenos incidentes.",
         ],
-        "impact": "The pace of daily life has to change. Productivity, mood, and consistency can all drop until the routine is corrected.",
-        "risk": "If ignored, stress turns into mistakes, avoidable health setbacks, or a longer recovery period.",
-        "action": "Reduce overload early, protect sleep, and treat persistent symptoms or emotional strain as something to address with real support.",
+        "impact": "A rotina perde rendimento e pode exigir corte de agenda, repouso ou reorganizacao pratica.",
+        "risk": "Se isso for ignorado, o quadro pode virar afastamento, erro serio, piora emocional ou acidente evitavel.",
+        "action": "Reduza excesso, respeite sinais do corpo, evite dirigir ou agir no impulso quando estiver esgotado e procure ajuda profissional se o sintoma persistir.",
     },
     "career": {
-        "what": "Professional structure is shifting, and the current role, path, or expectations may no longer hold in the same way.",
+        "what": "Ha mudanca concreta na vida profissional. O periodo pode trazer oportunidade nova, pressao por resultado, troca de funcao ou perda de emprego se a estrutura atual ja estiver fragil.",
         "scenarios": [
-            "A boss, client, or institution increases pressure and forces a decision about staying, leaving, or repositioning.",
-            "A new opportunity appears, but it requires a concrete tradeoff such as more responsibility, relocation, or a sharper public role.",
-            "The person reaches a point where continuing in the same professional pattern becomes more costly than changing it.",
+            "Chefe, cliente ou empresa pressiona mais e obriga uma decisao sobre sair, ficar ou mudar de posicao.",
+            "Surge proposta de trabalho, projeto ou promocao, mas ela cobra responsabilidade maior ou reposicionamento rapido.",
+            "Se o ambiente ja esta instavel, cresce a chance de corte, desgaste forte ou saida forçada.",
         ],
-        "impact": "Career direction, reputation, daily workload, and long-term goals can all be redefined during this phase.",
-        "risk": "If ignored, the person may stay stuck in a role that is already collapsing or miss the timing to make a stronger move.",
-        "action": "Treat this as a decision period. Clarify the role you want, document facts, and make moves based on strategy rather than fatigue.",
+        "impact": "Carreira, renda, rotina e imagem publica podem mudar no mesmo bloco de tempo.",
+        "risk": "Se voce empurrar a decisao, pode perder tempo, dinheiro e margem de negociacao.",
+        "action": "Trate isso como fase de decisao profissional. Atualize curriculo, documente fatos, negocie com clareza e nao espere a situacao piorar para agir.",
     },
     "relationships": {
-        "what": "Emotional and relational patterns are becoming harder to keep vague, so bonds move toward clarity, commitment, or friction.",
+        "what": "Relacionamentos entram em fase de definicao. O periodo favorece namoro serio, noivado, casamento ou uma conversa decisiva com {partner_role} sobre o futuro.",
         "scenarios": [
-            "A relationship becomes serious through honest discussion, clearer expectations, or a concrete next step.",
-            "Someone new enters quickly and changes the emotional focus of the period.",
-            "An existing bond stops coasting and requires direct conversation about what each person actually wants.",
+            "A relacao com {partner_role} avanca para compromisso mais claro, como oficializacao, morar junto ou casamento.",
+            "Alguem novo entra e rapidamente vira foco emocional principal.",
+            "Uma conversa objetiva com {partner_role} define se a relacao vai crescer ou parar de vez.",
         ],
-        "impact": "The person gains clarity about intimacy, emotional reciprocity, and whether a bond is growing or only being prolonged.",
-        "risk": "If ignored, mixed signals can turn into resentment, false hope, or emotional triangles that complicate the situation further.",
-        "action": "Say what you want clearly, test reciprocity with actions, and do not confuse temporary intensity with long-term stability.",
+        "impact": "A vida afetiva ganha rumo mais claro: compromisso, mudanca de status ou encerramento de indefinicao.",
+        "risk": "Se voce evitar a conversa certa, a relacao pode entrar em desgaste, ciúme, promessa vazia ou triangulo emocional.",
+        "action": "Diga o que quer, observe atitude concreta do outro e diferencie paixao momentanea de projeto real de vida.",
     },
     "rupture": {
-        "what": "A bond, agreement, or emotional structure is under enough strain that separation, cutoff, or a hard reset becomes more likely.",
+        "what": "Ha risco alto de briga seria, corte emocional ou separacao. Isso pode acontecer com {partner_role}, ex, familia ou alguem muito proximo.",
         "scenarios": [
-            "A relationship reaches a breaking point after repeated tension, silence, or incompatible needs.",
-            "A family or emotional bond cools sharply after one difficult conversation or a long unresolved pattern.",
-            "The person decides to stop tolerating a situation that has been draining them for too long.",
+            "A relacao com {partner_role} chega ao limite depois de desgaste, frieza ou conflito repetido.",
+            "Uma conversa pesada com pai, mae ou familiar abre distancia, magoa ou afastamento mais direto.",
+            "Voce decide parar de tolerar uma situacao que ja vinha consumindo sua paz.",
         ],
-        "impact": "Emotional priorities change quickly, and the person may have to rebuild boundaries, routines, or support systems.",
-        "risk": "If ignored, the rupture can become messier, more public, or more damaging to trust and mental stability.",
-        "action": "Handle the situation directly, protect dignity, and prepare for practical consequences instead of waiting for the issue to dissolve on its own.",
+        "impact": "Vinculos mudam de lugar rapidamente e isso mexe com rotina, moradia, apoio emocional e senso de estabilidade.",
+        "risk": "Se for empurrado com a barriga, o conflito pode virar humilhacao, perda de confianca ou separacao mais dura.",
+        "action": "Conduza a conversa com clareza, prepare limite e nao espere o problema se resolver sozinho.",
     },
     "major_transitions": {
-        "what": "Several layers of life are reorganizing at once, so identity, direction, resources, or place in the world can change together.",
+        "what": "Esta e uma fase de virada grande. Trabalho, dinheiro, identidade, cidade, rotina ou relacoes podem mudar juntos no mesmo ciclo.",
         "scenarios": [
-            "A career shift triggers financial, personal, and relational changes over the same period.",
-            "A person leaves an old life chapter behind and starts rebuilding from a new set of priorities.",
-            "External pressure forces a decision that changes how the person lives, works, or defines themselves.",
+            "Uma mudanca de carreira puxa ajuste financeiro, afetivo e pessoal ao mesmo tempo.",
+            "Voce fecha um capitulo antigo e comeca outro com prioridades bem diferentes.",
+            "A pressao externa obriga uma decisao que muda o jeito de viver, trabalhar ou se posicionar.",
         ],
-        "impact": "This phase can redraw the long-term map, affecting direction, commitments, money, and psychological stability at the same time.",
-        "risk": "If ignored, the transition becomes reactive instead of strategic, creating bigger losses and unnecessary chaos.",
-        "action": "Assume that this is a turning period. Simplify what is unsustainable, choose a clear direction, and make deliberate changes before circumstances choose for you.",
+        "impact": "O mapa da vida muda de verdade: direcao, compromissos, dinheiro e estabilidade emocional entram em rearranjo.",
+        "risk": "Se voce reagir tarde, a mudanca vem de forma caotica e mais cara.",
+        "action": "Assuma que esta em virada de vida, corte o que nao sustenta mais e escolha uma direcao antes que o contexto escolha por voce.",
     },
 }
 
@@ -190,7 +195,7 @@ def _merged_window(items: list[dict[str, Any]], reference_date: date) -> dict[st
 
 def _relative_timeframe(reference_date: date, window: dict[str, Any] | None) -> str:
     if not window:
-        return "timing still forming"
+        return "tempo ainda em formacao"
 
     start = _parse_iso_date(window["start"]) or reference_date
     end = _parse_iso_date(window["end"]) or start
@@ -198,16 +203,16 @@ def _relative_timeframe(reference_date: date, window: dict[str, Any] | None) -> 
     duration_days = max(1, (end - start).days + 1)
 
     if days_to_start <= 7 and duration_days <= 14:
-        return "next 1-2 weeks"
+        return "proximas 1 a 2 semanas"
     if days_to_start <= 14 and duration_days <= 28:
-        return "next 2-4 weeks"
+        return "proximas 2 a 4 semanas"
     if days_to_start <= 30 and duration_days <= 60:
-        return "within 1-2 months"
+        return "dentro de 1 a 2 meses"
     if days_to_start <= 60 and duration_days <= 120:
-        return "within 2-4 months"
+        return "dentro de 2 a 4 meses"
     if days_to_start <= 120 and duration_days <= 240:
-        return "within 6-8 months"
-    return "over the next 12-24 months"
+        return "dentro de 6 a 8 meses"
+    return "ao longo dos proximos 12 a 24 meses"
 
 
 def _explanation(
@@ -224,12 +229,9 @@ def _explanation(
     evidence = evidence[:4]
 
     if not evidence:
-        return f"{event_type} has some activation, but the pattern is still forming."
+        return f"{event_type} tem sinais aparecendo, mas ainda sem forca suficiente para uma previsao firme."
 
-    return (
-        "There is a convergence of signals around this theme. "
-        f"Main drivers: {', '.join(evidence)}."
-    )
+    return f"Ha convergencia real de sinais neste tema. Principais confirmacoes: {', '.join(evidence)}."
 
 
 def _sort_signals(signals: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -243,24 +245,86 @@ def _sort_signals(signals: list[dict[str, Any]]) -> list[dict[str, Any]]:
     )
 
 
-def _build_human_translation(category_key: str, time_label: str) -> dict[str, Any]:
+def _category_priority_boost(category_key: str, user_context: dict[str, Any]) -> float:
+    status = str(user_context.get("relationship_status") or "unknown")
+    boosts = {
+        "rupture": {
+            "separated": 0.35,
+            "divorced": 0.35,
+            "widowed": 0.2,
+        },
+        "relationships": {
+            "dating": 0.25,
+            "engaged": 0.3,
+            "married": 0.3,
+            "single": 0.15,
+        },
+        "health": {},
+        "career": {},
+        "major_transitions": {
+            "separated": 0.15,
+            "divorced": 0.15,
+        },
+    }
+    return boosts.get(category_key, {}).get(status, 0.0)
+
+
+def _personalize_template_text(text: str, placeholders: dict[str, str]) -> str:
+    result = text
+    for key, value in placeholders.items():
+        if value:
+            result = result.replace(f"{{{key}}}", value)
+    return result
+
+
+def _build_context_placeholders(user_context: dict[str, Any]) -> dict[str, str]:
+    partner = str(user_context.get("current_partner_role") or "unknown")
+    partner_label = {
+        "girlfriend": "sua namorada",
+        "boyfriend": "seu namorado",
+        "wife": "sua esposa",
+        "husband": "seu marido",
+        "partner": "seu parceiro",
+    }.get(partner, "seu parceiro")
+    return {"partner_role": partner_label}
+
+
+def _build_human_translation(
+    category_key: str,
+    time_label: str,
+    *,
+    independent_signals: int,
+    user_context: dict[str, Any],
+) -> dict[str, Any]:
     template = REALITY_TEMPLATES[category_key]
+    placeholders = _build_context_placeholders(user_context)
+    certainty = certainty_from_signal_count(independent_signals)
+    what = _personalize_template_text(template["what"], placeholders)
+    what = apply_certainty_prefix(what, certainty)
+    scenarios = [_personalize_template_text(item, placeholders) for item in template["scenarios"][:3]]
+    if category_key == "rupture" and user_context.get("father_status") == "deceased":
+        scenarios = [
+            item for item in scenarios
+            if "pai" not in item.lower() or "mae" in item.lower()
+        ] or scenarios
     return {
-        "what_is_happening": template["what"],
-        "what_this_may_look_like_in_real_life": template["scenarios"][:2],
-        "possible_scenarios": template["scenarios"][:3],
-        "impact": template["impact"],
-        "risk": template["risk"],
-        "recommended_action": template["action"],
+        "what_is_happening": what,
+        "what_this_may_look_like_in_real_life": scenarios[:2],
+        "possible_scenarios": scenarios,
+        "impact": _personalize_template_text(template["impact"], placeholders),
+        "risk": _personalize_template_text(template["risk"], placeholders),
+        "recommended_action": _personalize_template_text(template["action"], placeholders),
+        "certainty_level": certainty,
+        "certainty_label": CERTAINTY_LABELS[certainty],
         "formatted_block": (
-            f"Timeframe:\n{time_label}\n\n"
-            f"What is happening:\n{template['what']}\n\n"
-            "What this may look like in real life:\n"
-            + "\n".join(f"* {item}" for item in template["scenarios"][:2])
+            f"Janela de tempo:\n{time_label}\n\n"
+            f"O que esta acontecendo:\n{what}\n\n"
+            "Como isso pode aparecer na vida real:\n"
+            + "\n".join(f"* {item}" for item in scenarios[:2])
             + "\n\n"
-            f"Impact:\n{template['impact']}\n\n"
-            f"Risk:\n{template['risk']}\n\n"
-            f"Recommended action:\n{template['action']}"
+            f"Impacto:\n{template['impact']}\n\n"
+            f"Risco:\n{template['risk']}\n\n"
+            f"Acao recomendada:\n{template['action']}"
         ),
     }
 
@@ -270,6 +334,7 @@ def build_predictive_insights(
     *,
     reference_date: date,
 ) -> dict[str, Any]:
+    user_context = dict(analysis.get("user_context") or {})
     signals = list(analysis.get("signals", []))
     rule_hits = list(analysis.get("rule_hits", []))
     life_events = list(analysis.get("life_events", []))
@@ -322,20 +387,25 @@ def build_predictive_insights(
             ],
         ]
         time_window = _merged_window(merged_items, reference_date)
+        priority_boost = _category_priority_boost(definition["key"], user_context)
         probability_score = round(
             min(
                 0.95,
                 (
                     (independent_signals * 0.19)
                     + (sum(float(signal["weight"]) for signal in category_signals[:4]) * 0.08)
+                    + priority_boost
                 ),
             ),
             2,
         )
+        certainty_level = certainty_from_signal_count(independent_signals)
         entry = {
             "category_key": definition["key"],
             "event_type": definition["event_type"],
             "probability_level": probability_level,
+            "certainty_level": certainty_level,
+            "certainty_label": CERTAINTY_LABELS[certainty_level],
             "independent_signals": independent_signals,
             "probability_score": probability_score,
             "time_window": {
@@ -368,6 +438,8 @@ def build_predictive_insights(
             _build_human_translation(
                 definition["key"],
                 entry["time_window"]["label"],
+                independent_signals=independent_signals,
+                user_context=user_context,
             )
         )
 

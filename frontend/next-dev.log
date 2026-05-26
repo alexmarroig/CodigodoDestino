@@ -10,21 +10,9 @@
   - Local:        http://localhost:3000
 
  ✓ Starting...
- ✓ Ready in 1888ms
+ ✓ Ready in 3.5s
  ○ Compiling / ...
- ✓ Compiled / in 4.6s (1316 modules)
- GET / 200 in 4819ms
- GET / 200 in 65ms
- GET / 200 in 204ms
- ✓ Compiled in 394ms (658 modules)
- ✓ Compiled in 594ms (1298 modules)
- GET / 200 in 144ms
- ✓ Compiled in 140ms (658 modules)
- ✓ Compiled /_not-found in 199ms (1287 modules)
- GET /_next/static/css/app/layout.css?v=1775690838551 404 in 277ms
- ✓ Compiled in 353ms (1299 modules)
- ✓ Compiled /_not-found in 67ms (642 modules)
- GET /_next/static/css/app/layout.css?v=1775690924842 404 in 116ms
- ✓ Compiled in 278ms (1301 modules)
- GET / 200 in 96ms
-[?25h
+ ✓ Compiled / in 9.1s (1316 modules)
+ GET / 200 in 9370ms
+ GET / 200 in 72ms
+ GET / 200 in 270ms

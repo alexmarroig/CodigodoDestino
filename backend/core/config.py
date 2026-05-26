@@ -89,7 +89,7 @@ class Settings:
     max_events_in_prompt: int = _get_int("MAX_EVENTS_IN_PROMPT", 3)
     llm_complexity_threshold: float = _get_float("LLM_COMPLEXITY_THRESHOLD", 0.55)
     llm_min_high_intensity_events: int = _get_int("LLM_MIN_HIGH_INTENSITY_EVENTS", 1)
-    llm_max_tokens: int = _get_int("LLM_MAX_TOKENS", 320)
+    llm_max_tokens: int = _get_int("LLM_MAX_TOKENS", 1500)
     llm_force_for_master_numbers: bool = _get_bool("LLM_FORCE_FOR_MASTER_NUMBERS", True)
 
     openrouter_api_key: str = _get_env("OPENROUTER_API_KEY", "")

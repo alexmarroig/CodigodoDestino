@@ -13,12 +13,45 @@ export type RelationshipStatus =
   | 'unknown'
 export type LivingStatus = 'alive' | 'deceased' | 'unknown'
 
+export type FamilyRelationshipQuality = 'close' | 'distant' | 'conflict' | 'absent' | 'unknown'
+
 export type UserContext = {
   relationship_status?: RelationshipStatus
   current_partner_role?: 'girlfriend' | 'boyfriend' | 'wife' | 'husband' | 'partner' | 'unknown'
   has_children?: boolean | null
   father_status?: LivingStatus
   mother_status?: LivingStatus
+  current_city?: string
+  lives_alone?: boolean | null
+  father_relationship?: FamilyRelationshipQuality
+  mother_relationship?: FamilyRelationshipQuality
+  has_siblings?: boolean | null
+  experienced_adoption?: boolean | null
+  experienced_abandonment?: boolean | null
+  major_trauma_notes?: string
+  major_loss_notes?: string
+  marked_separation?: boolean | null
+  experienced_betrayal?: boolean | null
+  experienced_depression?: boolean | null
+  recurring_feeling?: string
+  city_change?: boolean | null
+  country_change?: boolean | null
+  financial_crisis?: boolean | null
+  important_death?: string
+  living_situation?: string
+}
+
+export type DestinyCertaintyLevel = 'chance' | 'tendency' | 'must' | 'will'
+
+export type DestinySection = {
+  id: string
+  title: string
+  order: number
+  summary: string
+  body: string
+  certainty_level: DestinyCertaintyLevel
+  certainty_label: string
+  evidence: string[]
 }
 
 export type RelatedPerson = {
@@ -383,7 +416,7 @@ export type TurningPoint = {
 export type PredictiveInsight = {
   category_key: string
   event_type: string
-  probability_level: 'Discard' | 'Weak' | 'Moderate' | 'High'
+  probability_level: 'Descartar' | 'Baixa' | 'Moderada' | 'Alta'
   independent_signals: number
   probability_score: number
   time_window: TimeWindow & { label: string }
@@ -400,6 +433,8 @@ export type PredictiveInsight = {
   risk: string
   recommended_action: string
   formatted_block: string
+  certainty_level?: DestinyCertaintyLevel
+  certainty_label?: string
 }
 
 export type PurposeForecast = {
@@ -563,6 +598,7 @@ export type MapaResponse = {
     prompt_event_count: number
     cached?: boolean
   }
+  destiny_sections?: DestinySection[]
   metadata: {
     engine_version: string
     cache_hit: boolean

@@ -30,6 +30,36 @@ class UserContextRequest(BaseModel):
     has_children: bool | None = None
     father_status: Literal["alive", "deceased", "unknown"] | None = None
     mother_status: Literal["alive", "deceased", "unknown"] | None = None
+    current_city: str | None = Field(default=None, max_length=120)
+    lives_alone: bool | None = None
+    father_relationship: Literal[
+        "close",
+        "distant",
+        "conflict",
+        "absent",
+        "unknown",
+    ] | None = None
+    mother_relationship: Literal[
+        "close",
+        "distant",
+        "conflict",
+        "absent",
+        "unknown",
+    ] | None = None
+    has_siblings: bool | None = None
+    experienced_adoption: bool | None = None
+    experienced_abandonment: bool | None = None
+    major_trauma_notes: str | None = Field(default=None, max_length=500)
+    major_loss_notes: str | None = Field(default=None, max_length=500)
+    marked_separation: bool | None = None
+    experienced_betrayal: bool | None = None
+    experienced_depression: bool | None = None
+    recurring_feeling: str | None = Field(default=None, max_length=200)
+    city_change: bool | None = None
+    country_change: bool | None = None
+    financial_crisis: bool | None = None
+    important_death: str | None = Field(default=None, max_length=200)
+    living_situation: str | None = Field(default=None, max_length=120)
 
 
 class RelatedPersonRequest(BaseModel):

@@ -169,7 +169,7 @@ function PredictiveCard({ insight, index }: { insight: PredictiveInsight; index:
     >
       <div className="space-y-5">
         <div className="flex flex-wrap gap-2">
-          <Badge tone={insight.probability_level === 'High' ? 'warm' : 'soft'}>{translateProbability(insight.probability_level)}</Badge>
+          <Badge tone={insight.probability_level === 'Alta' ? 'warm' : 'soft'}>{translateProbability(insight.probability_level)}</Badge>
           <Badge tone="muted">{Math.round(insight.probability_score * 100)}%</Badge>
           {insight.exact_dates[0] ? <Badge tone="soft">Pico {formatFullDate(insight.exact_dates[0])}</Badge> : null}
         </div>
@@ -186,6 +186,8 @@ function PredictiveCard({ insight, index }: { insight: PredictiveInsight; index:
 
         <DetailBlock title="O que esta acontecendo" text={insight.what_is_happening} />
         <BulletBlock title="Como isso pode aparecer na vida real" items={insight.what_this_may_look_like_in_real_life.slice(0, 2)} />
+        {insight.signals.length ? <BulletBlock title="Aspectos e confirmacoes usadas" items={insight.signals.slice(0, 4)} /> : null}
+        {insight.rule_hits.length ? <BulletBlock title="Regras que reforcam a leitura" items={insight.rule_hits.slice(0, 3)} /> : null}
         <DetailBlock title="Impacto" text={insight.impact} />
         <DetailBlock title="Risco" text={insight.risk} />
         <DetailBlock title="Acao recomendada" text={insight.recommended_action} />
@@ -211,6 +213,7 @@ function WatchCard({ insight, index }: { insight: PredictiveInsight; index: numb
         <h4 className="text-xl font-semibold text-[var(--fg)]">{translateEventType(insight.event_type)}</h4>
         <p className="text-sm text-[var(--muted)]">{insight.what_is_happening}</p>
         <SoftCard label="Quando observar" value={translateTimeLabel(insight.time_window.label)} />
+        {insight.signals.length ? <BulletBlock title="Sinais usados" items={insight.signals.slice(0, 3)} /> : null}
       </div>
     </motion.article>
   )
@@ -454,11 +457,11 @@ function buildDateRange(window: { start?: string; end?: string }) {
 
 function translateProbability(value: PredictiveInsight['probability_level']) {
   switch (value) {
-    case 'High':
+    case 'Alta':
       return 'Alta probabilidade'
-    case 'Moderate':
+    case 'Moderada':
       return 'Probabilidade moderada'
-    case 'Weak':
+    case 'Baixa':
       return 'Sinal fraco'
     default:
       return 'Descartado'
@@ -467,15 +470,15 @@ function translateProbability(value: PredictiveInsight['probability_level']) {
 
 function translateEventType(value: string) {
   switch (value) {
-    case 'Health / illness':
+    case 'Saude, doenca ou acidente':
       return 'Saude e desgaste'
-    case 'Career changes / job opportunities':
+    case 'Emprego, carreira ou perda de trabalho':
       return 'Mudanca de carreira ou trabalho'
-    case 'Relationships / emotional events':
+    case 'Relacionamento, namoro ou casamento':
       return 'Relacionamentos'
-    case 'Loss / rupture / separation':
+    case 'Briga, ruptura ou separacao':
       return 'Ruptura ou separacao'
-    case 'Major life transitions':
+    case 'Grande mudanca de vida':
       return 'Grande virada de vida'
     default:
       return value
@@ -484,17 +487,17 @@ function translateEventType(value: string) {
 
 function translateTimeLabel(value: string) {
   switch (value) {
-    case 'next 1-2 weeks':
+    case 'proximas 1 a 2 semanas':
       return 'Proximas 1 a 2 semanas'
-    case 'next 2-4 weeks':
+    case 'proximas 2 a 4 semanas':
       return 'Proximas 2 a 4 semanas'
-    case 'within 1-2 months':
+    case 'dentro de 1 a 2 meses':
       return 'Dentro de 1 a 2 meses'
-    case 'within 2-4 months':
+    case 'dentro de 2 a 4 meses':
       return 'Dentro de 2 a 4 meses'
-    case 'within 6-8 months':
+    case 'dentro de 6 a 8 meses':
       return 'Dentro de 6 a 8 meses'
-    case 'over the next 12-24 months':
+    case 'ao longo dos proximos 12 a 24 meses':
       return 'Ao longo dos proximos 12 a 24 meses'
     default:
       return value
