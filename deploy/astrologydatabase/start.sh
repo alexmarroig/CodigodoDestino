@@ -22,14 +22,24 @@ import os
 
 raw = os.environ.get("ALLOWED_ORIGINS", "").strip()
 if not raw:
-    print("[]")
+    print("")
 elif raw.startswith("["):
-    print(raw)
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, list):
+            print(json.dumps(parsed))
+        else:
+            print("")
+    except json.JSONDecodeError:
+        print("")
 else:
     origins = [item.strip() for item in raw.split(",") if item.strip()]
-    print(json.dumps(origins))
+    print(json.dumps(origins) if origins else "")
 PY
 )"
+  if [ -z "${ALLOWED_ORIGINS}" ]; then
+    unset ALLOWED_ORIGINS
+  fi
 fi
 
 echo "Running Alembic migrations..."
