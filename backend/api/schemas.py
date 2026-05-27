@@ -70,6 +70,25 @@ class UserContextRequest(BaseModel):
     financial_crisis: bool | None = None
     important_death: str | None = Field(default=None, max_length=200)
 
+    @field_validator("living_situation", mode="before")
+    @classmethod
+    def normalize_living_situation(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        normalized = str(value).strip().lower()
+        allowed = {"alone", "with_partner", "with_family", "shared"}
+        if normalized in allowed:
+            return normalized
+        if "sozinho" in normalized:
+            return "alone"
+        if any(token in normalized for token in ("parceiro", "cônjuge", "conjuge", "casal")):
+            return "with_partner"
+        if "família" in normalized or "familia" in normalized:
+            return "with_family"
+        if "compartilh" in normalized or "shared" in normalized:
+            return "shared"
+        return None
+
 
 class RelatedPersonRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=80)
