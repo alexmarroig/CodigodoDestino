@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import type { ReactNode } from 'react'
 import type { FormEvent } from 'react'
 import { useState } from 'react'
@@ -88,21 +87,13 @@ export function HoraryExperience() {
       <div className="aurora-field pointer-events-none absolute inset-0 opacity-80" />
       <div className="starfield pointer-events-none absolute inset-0 opacity-45" />
 
-      <div className="relative mx-auto max-w-[1200px] px-5 pb-20 pt-8 sm:px-8">
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.42em] text-[var(--muted-soft)]">Codigo do Destino</p>
-            <h1 className="text-3xl font-semibold sm:text-5xl">Leitura horaria</h1>
-            <p className="max-w-2xl text-sm text-[var(--muted)] sm:text-base">
-              Para perguntas objetivas. O mapa se abre no instante exato em que a duvida e colocada.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Link href="/" className="ritual-button-muted inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold">
-              Voltar ao mapa natal
-            </Link>
-          </div>
+      <div className="relative mx-auto max-w-[1200px] px-5 pb-20 pt-6 sm:px-8">
+        <header className="space-y-2">
+          <p className="text-xs uppercase tracking-[0.42em] text-[var(--muted-soft)]">Astrologia horaria</p>
+          <h1 className="text-3xl font-semibold sm:text-5xl">Leitura horaria</h1>
+          <p className="max-w-2xl text-sm text-[var(--muted)] sm:text-base">
+            Para perguntas objetivas. O mapa se abre no instante exato em que a duvida e colocada.
+          </p>
         </header>
 
         <section className="mt-10 grid gap-6 xl:grid-cols-[0.95fr,1.05fr]">

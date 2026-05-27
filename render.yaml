@@ -1,0 +1,63 @@
+databases:
+  - name: astrologydatabase-db
+    plan: free
+    databaseName: astro_platform
+    user: astro
+
+services:
+  - type: web
+    name: astrologydatabase-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./deploy/astrologydatabase/Dockerfile
+    dockerContext: ./deploy/astrologydatabase
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: DEFAULT_SCHOOL
+        value: luz_e_sombra
+      - key: EPHEMERIS_PROVIDER
+        value: analytical
+      - key: DATABASE_URL
+        fromDatabase:
+          name: astrologydatabase-db
+          property: connectionString
+    buildFilter:
+      paths:
+        - deploy/astrologydatabase/**
+
+  - type: web
+    name: codigododestino-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: AUTO_CREATE_SCHEMA
+        value: "true"
+      - key: CORS_ALLOW_ORIGINS
+        value: https://frontend-alpha-flame-16.vercel.app,https://codigododestino.vercel.app,https://sitecelestia.vercel.app
+      - key: ASTROLOGY_SCHOOL_CODE
+        value: luz_e_sombra
+      - key: ASTROLOGY_DATABASE_URL
+        fromService:
+          type: web
+          name: astrologydatabase-api
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+    buildFilter:
+      paths:
+        - backend/**

@@ -1,0 +1,26 @@
+name: Warmup (Render keep-alive)
+
+on:
+  schedule:
+    # Pinga o backend a cada 14 minutos para evitar cold start no Render free tier
+    - cron: '*/14 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: Ping backend health
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /health
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BACKEND_HEALTH_URL" --max-time 20 || true)
+          echo "HTTP status: $STATUS"
+          if [ "$STATUS" = "200" ]; then
+            echo "Backend está acordado."
+          else
+            echo "Backend retornou $STATUS — pode estar iniciando."
+          fi
+        env:
+          # Configure este secret no GitHub: Settings > Secrets > BACKEND_HEALTH_URL
+          # Exemplo: https://seu-app.onrender.com/health
+          BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}

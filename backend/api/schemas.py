@@ -8,21 +8,87 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-class UserContext(BaseModel):
-    """Real-life context used to translate astrological signals into concrete scenarios."""
+class UserContextRequest(BaseModel):
+    relationship_status: Literal[
+        "single",
+        "dating",
+        "engaged",
+        "married",
+        "separated",
+        "divorced",
+        "widowed",
+        "unknown",
+    ] | None = None
+    current_partner_role: Literal[
+        "girlfriend",
+        "boyfriend",
+        "wife",
+        "husband",
+        "partner",
+        "unknown",
+    ] | None = None
+    employment_status: Literal[
+        "employed",
+        "unemployed",
+        "self_employed",
+        "student",
+        "retired",
+    ] | None = None
+    has_children: bool | None = None
+    father_status: Literal["alive", "deceased", "unknown"] | None = None
+    mother_status: Literal["alive", "deceased", "unknown"] | None = None
+    current_city: str | None = Field(default=None, max_length=120)
+    lives_alone: bool | None = None
+    living_situation: Literal["alone", "with_partner", "with_family", "shared"] | None = None
+    father_present: bool | None = None
+    mother_present: bool | None = None
+    father_relationship: Literal[
+        "close",
+        "distant",
+        "conflict",
+        "absent",
+        "unknown",
+    ] | None = None
+    mother_relationship: Literal[
+        "close",
+        "distant",
+        "conflict",
+        "absent",
+        "unknown",
+    ] | None = None
+    has_siblings: bool | None = None
+    experienced_adoption: bool | None = None
+    experienced_abandonment: bool | None = None
+    major_trauma_notes: str | None = Field(default=None, max_length=500)
+    major_loss_notes: str | None = Field(default=None, max_length=500)
+    marked_separation: bool | None = None
+    experienced_betrayal: bool | None = None
+    experienced_depression: bool | None = None
+    recurring_feeling: str | None = Field(default=None, max_length=200)
+    city_change: bool | None = None
+    country_change: bool | None = None
+    financial_crisis: bool | None = None
+    important_death: str | None = Field(default=None, max_length=200)
 
-    relationship_status: Literal["single", "dating", "married", "separated", "divorced", "widowed"] | None = Field(
-        default=None, description="Current relationship status.",
-    )
-    employment_status: Literal["employed", "unemployed", "self_employed", "student", "retired"] | None = Field(
-        default=None, description="Current employment status.",
-    )
-    has_children: bool | None = Field(default=None, description="Whether the person has children.")
-    living_situation: Literal["alone", "with_partner", "with_family", "shared"] | None = Field(
-        default=None, description="Current living arrangement.",
-    )
-    father_present: bool | None = Field(default=None, description="Whether the father is present/alive.")
-    mother_present: bool | None = Field(default=None, description="Whether the mother is present/alive.")
+
+class RelatedPersonRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=80)
+    relation: Literal[
+        "spouse",
+        "partner",
+        "boyfriend",
+        "girlfriend",
+        "father",
+        "mother",
+        "child",
+        "friend",
+        "sibling",
+        "in_law",
+        "other",
+    ]
+    birth_date: DateType | None = None
+    birth_time: TimeType | None = None
+    birth_time_precision: Literal["exact", "window", "unknown"] | None = None
 
 
 class MapaRequest(BaseModel):
@@ -55,7 +121,8 @@ class MapaRequest(BaseModel):
     )
     reference_date: DateType | None = Field(default=None, description="Optional forecast anchor date.")
     user_id: int | None = None
-    user_context: UserContext | None = Field(default=None, description="Real-life context for concrete scenario translation.")
+    user_context: UserContextRequest | None = None
+    related_people: list[RelatedPersonRequest] | None = None
 
     @field_validator("timezone")
     @classmethod

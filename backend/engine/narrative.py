@@ -1,51 +1,284 @@
 from __future__ import annotations
-import logging
-from typing import Any, Dict, List
+
+from dataclasses import asdict, dataclass
+from functools import lru_cache
+from typing import Any
+
 from openai import OpenAI
-from core.config import settings
+
 from core.cache import CacheClient
+from core.config import settings
+from core.serialization import json_dumps_text, stable_hash
+from engine.date_formatting import format_date_pt
+from engine.portuguese_text import polish_portuguese
+from engine.predictive_insights import format_prediction_block
 
-logger = logging.getLogger(__name__)
+PROMPT_META = {
+    "style": "analise-multicamadas",
+    "language": "pt-BR",
+    "temperature": 0,
+    "version": "v4",
+}
 
+INTENSITY_LABELS = {"high": "alta", "medium": "moderada", "low": "leve"}
+
+
+@dataclass(frozen=True)
+class NarrativePlan:
+    strategy: str
+    reason: str
+    complexity_score: float
+    selected_events: list[dict[str, Any]]
+    selected_domains: list[dict[str, Any]]
+    signature: str
+
+
+@lru_cache(maxsize=1)
 def _build_openai_client() -> OpenAI:
     return OpenAI(
-        base_url="https://openrouter.ai/api/v1",
         api_key=settings.openrouter_api_key,
+        base_url=settings.openrouter_base_url,
     )
 
+
+def _compact_event(event: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": event["id"],
+        "title": event["title"],
+        "domain": event["category"],
+        "probability": event["probability"],
+        "intensity": event["intensity"],
+        "signals": event.get("signals", [])[:4],
+        "time_window": event["time_window"],
+        "counter_signals": event.get("counter_signals", [])[:2],
+        "recommendations": event.get("recommendations", [])[:2],
+    }
+
+
+def _compact_domain(domain: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "domain": domain["domain"],
+        "domain_label": domain["domain_label"],
+        "probability": domain["probability"],
+        "tone": domain["tone"],
+        "converged": domain["converged"],
+        "independent_techniques": domain["independent_techniques"],
+        "signal_labels": [signal["label"] for signal in domain["signals"][:4]],
+        "time_window": domain["time_window"],
+    }
+
+
+def _select_events_for_prompt(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    ranked = sorted(
+        events,
+        key=lambda item: (
+            -float(item["probability"]),
+            item["time_window"]["start"],
+            item["id"],
+        ),
+    )
+    return [_compact_event(event) for event in ranked[: settings.max_events_in_prompt]]
+
+
+def _select_domains_for_prompt(domain_analysis: dict[str, Any]) -> list[dict[str, Any]]:
+    domains = list(domain_analysis.get("domains", []))
+    ranked = sorted(
+        domains,
+        key=lambda item: (
+            not item["converged"],
+            -float(item["probability"]),
+            item["domain"],
+        ),
+    )
+    return [_compact_domain(item) for item in ranked[: max(settings.max_events_in_prompt, 3)]]
+
+
+def _calculate_complexity_score(
+    events: list[dict[str, Any]],
+    domain_analysis: dict[str, Any],
+    uncertainties: list[dict[str, Any]],
+) -> float:
+    if not events and not domain_analysis.get("domains"):
+        return 0.0
+
+    high_intensity_count = sum(1 for event in events if event["intensity"] == "high")
+    average_probability = (
+        sum(float(event["probability"]) for event in events) / len(events)
+        if events
+        else 0.0
+    )
+    domain_diversity = min(1.0, len(domain_analysis.get("domains", [])) / 4)
+    uncertainty_load = min(1.0, len(uncertainties) / 3)
+
+    score = (
+        (average_probability * 0.45)
+        + (high_intensity_count * 0.16)
+        + (domain_diversity * 0.2)
+        + (uncertainty_load * 0.1)
+    )
+    return round(min(1.0, score), 3)
+
+
+def _should_use_llm(
+    events: list[dict[str, Any]],
+    confidence: dict[str, Any],
+    complexity_score: float,
+) -> tuple[bool, str]:
+    if confidence.get("level") == "high":
+        return True, "high-confidence-convergence"
+    high_intensity_count = sum(1 for event in events if event["intensity"] == "high")
+    if (
+        confidence.get("level") == "medium"
+        and high_intensity_count >= max(2, settings.llm_min_high_intensity_events)
+    ):
+        return True, "high-intensity-events"
+    if confidence.get("level") != "low" and complexity_score >= settings.llm_complexity_threshold:
+        return True, "complexity-threshold"
+    return False, "template-cheaper-and-sufficient"
+
+
+def _build_signature(
+    selected_events: list[dict[str, Any]],
+    selected_domains: list[dict[str, Any]],
+    strategy: str,
+) -> str:
+    return stable_hash(
+        {
+            "strategy": strategy,
+            "events": selected_events,
+            "domains": selected_domains,
+        }
+    )
+
+
+def _build_narrative_plan(
+    analysis: dict[str, Any],
+    events: list[dict[str, Any]],
+    confidence: dict[str, Any],
+    uncertainties: list[dict[str, Any]],
+) -> NarrativePlan:
+    selected_events = _select_events_for_prompt(events)
+    selected_domains = _select_domains_for_prompt(analysis.get("domain_analysis", {}))
+    complexity_score = _calculate_complexity_score(
+        selected_events,
+        analysis.get("domain_analysis", {}),
+        uncertainties,
+    )
+    use_llm, reason = _should_use_llm(selected_events, confidence, complexity_score)
+    strategy = "llm" if use_llm else "template"
+    signature = _build_signature(selected_events, selected_domains, strategy)
+
+    return NarrativePlan(
+        strategy=strategy,
+        reason=reason,
+        complexity_score=complexity_score,
+        selected_events=selected_events,
+        selected_domains=selected_domains,
+        signature=signature,
+    )
+
+
+def build_narrative_prompt(
+    analysis: dict[str, Any],
+    events: list[dict[str, Any]],
+    event_summary: dict[str, Any],
+    confidence: dict[str, Any],
+    uncertainties: list[dict[str, Any]],
+    forecast_360: dict[str, Any],
+    timeline: dict[str, Any],
+    life_episodes: list[dict[str, Any]],
+    turning_points: list[dict[str, Any]],
+) -> dict[str, Any]:
+    plan = _build_narrative_plan(analysis, events, confidence, uncertainties)
+    prompt_payload = {
+        "profile_quality": analysis.get("profile_quality", {}),
+        "user_context": analysis.get("user_context", {}),
+        "related_people": analysis.get("related_people", []),
+        "confidence": confidence,
+        "event_summary": event_summary,
+        "macro_theme": {
+            "profections": analysis.get("profections", {}),
+            "solar_return": analysis.get("solar_return", {}),
+        },
+        "forecast_360": forecast_360,
+        "timeline": timeline,
+        "life_episodes": life_episodes[:6],
+        "turning_points": turning_points[:6],
+        "domains": plan.selected_domains,
+        "domain_coverage": analysis.get("domain_analysis", {}).get("coverage", []),
+        "events": plan.selected_events,
+        "special_forecasts": {
+            "relationship": analysis.get("relationship_analysis", {}),
+            "financial": analysis.get("financial_analysis", {}),
+            "purpose": analysis.get("purpose_analysis", {}),
+            "predictive_insights": analysis.get("predictive_insights", {}),
+            "rule_hits": analysis.get("rule_hits", [])[:12],
+            "exact_timing": analysis.get("exact_timing", {}),
+            "life_events": analysis.get("life_events", []),
+            "life_story": analysis.get("life_story", {}),
+        },
+        "uncertainties": uncertainties[:3],
+        "techniques_used": analysis.get("techniques_used", []),
+        "numerology": analysis.get("numerology", {}),
+    }
+
+    prompt_lines = [
+        "Voce e uma inteligencia de leitura de destino: astrologia, numerologia e contexto humano.",
+        "Nao invente dados fora do JSON.",
+        "Use pt-BR direto, frio, intimo e psicologico — sem coach, sem autoajuda, sem espiritualidade fofa.",
+        "NUNCA use: universo, vibracao, gratidao, luz, manifestacao, energia linda.",
+        "Descreva ACONTECIMENTOS HUMANOS, nao planetas ou aspectos (Saturno, quadratura, etc.).",
+        "Escala de certeza por convergencia de tecnicas:",
+        "- 1 tecnica: existe chance de...",
+        "- 2 tecnicas: ha forte tendencia de...",
+        "- 3 tecnicas: isso deve acontecer...",
+        "- 4+ tecnicas: isso vai acontecer...",
+        "Quando houver sinais mistos, diga o que observar sem suavizar demais.",
+        "",
+        "JSON DE ANALISE:",
+        json_dumps_text(prompt_payload, sort_keys=True),
+        "",
+        "FORMATO OBRIGATORIO:",
+        "1. Visao geral dos proximos meses em 1 paragrafo.",
+        "2. Curto prazo, proximos 12 meses e tendencia mais longa.",
+        "3. Relacionamentos, amizades, familia, carreira, saude, viagens, transicoes e financas.",
+        "4. Proposito e direcao de vida.",
+        "5. Para cada evento validado, traduza para vida real: o que esta acontecendo, 2 ou 3 cenarios concretos, impacto, risco e acao recomendada.",
+        "6. Datas de virada e o que tende a acontecer em cada uma.",
+        "7. Incertezas e o que observar.",
+        "8. Nota curta de responsabilidade.",
+    ]
+
+    return {
+        "prompt_meta": PROMPT_META,
+        "prompt": "\n".join(prompt_lines),
+        "events_used": plan.selected_events,
+        "domains_used": plan.selected_domains,
+        "analysis_digest": prompt_payload,
+        "plan": asdict(plan),
+    }
+
+
 def _llm_cache_key(signature: str, model: str) -> str:
-    return f"llm_narrative:{signature}:{model}"
+    return f"llm:{model}:{signature}"
+
 
 def _call_openrouter(prompt: str, model: str) -> dict[str, Any]:
     client = _build_openai_client()
-
-    system_prompt = (
-        "Voce e um especialista senior em Product Design (Apple/Google) e Astrologia Psicologica Profunda. "
-        "Sua tarefa e REESTRUTURAR o conteudo para uma experiencia premium de alto nivel.\n\n"
-        "REGRAS DE OURO:\n"
-        "1. LINGUAGEM: Humana, afirmativa, sem jargao astrologico, sem 'pode/talvez'. Frases curtas.\n"
-        "2. ESTRUTURA: Entregue exatamente 6 blocos numerados:\n"
-        "   1. SEU MOMENTO AGORA (Foco, desafio, oportunidade, estado emocional)\n"
-        "   2. QUEM ESTA ENVOLVIDO (Tipo de pessoa, funcao, dinâmica e impacto)\n"
-        "   3. LINHA DO TEMPO (Agora, Proximo Pico, Depois)\n"
-        "   4. SCORES (0-10 para Amor, Carreira, Dinheiro e Saude)\n"
-        "   5. ALERTAS (Riscos reais e pontos de sobrecarga)\n"
-        "   6. DIRECAO PRATICA (Acao direta, decisao necessaria e o que evitar)\n\n"
-        "3. CAMADAS: Use o formato:\n"
-        "[TITULO]\n"
-        "👉 Resumo brutal (1 linha)\n"
-        "Explicacao simples (2-3 linhas)\n"
-        "💡 O que isso pede de voce: (bullets)\n"
-        "⚠️ Atencao: (bullets)\n\n"
-        "NAO EXPLIQUE O QUE FEZ. APENAS ENTREGUE O RESULTADO."
-    )
 
     response = client.chat.completions.create(
         model=model,
         temperature=0,
         max_tokens=settings.llm_max_tokens,
         messages=[
-            {"role": "system", "content": system_prompt},
+            {
+                "role": "system",
+                "content": (
+                    "Voce escreve narrativas de destino em portugues do Brasil: especificas, "
+                    "humanas, inevitaveis quando a evidencia converge. Sem tom de coach ou horoscopo generico. "
+                    "Fale de rupturas, perdas, relacoes, dinheiro e viradas com datas ou janelas quando existirem."
+                ),
+            },
             {"role": "user", "content": prompt},
         ],
         extra_headers={
@@ -54,149 +287,267 @@ def _call_openrouter(prompt: str, model: str) -> dict[str, Any]:
         },
     )
 
-    text = response.choices[0].message.content or ""
+    message_content = response.choices[0].message.content or ""
+    if isinstance(message_content, list):
+        text = "".join(
+            part.text
+            for part in message_content
+            if hasattr(part, "text") and isinstance(part.text, str)
+        )
+    else:
+        text = str(message_content)
+    usage = response.usage
+
     return {
         "text": text.strip(),
         "model": model,
         "provider": "openrouter",
         "usage": {
-            "input_tokens": response.usage.prompt_tokens if response.usage else 0,
-            "output_tokens": response.usage.completion_tokens if response.usage else 0,
+            "input_tokens": getattr(usage, "prompt_tokens", 0) if usage else 0,
+            "output_tokens": getattr(usage, "completion_tokens", 0) if usage else 0,
         },
     }
+
 
 def _build_local_fallback(
     events: list[dict[str, Any]],
-    decision_results: dict[str, Any] | None = None,
-    **kwargs,
-) -> dict[str, Any]:
-    # Compatibility with old signature for tests
-    if decision_results is None:
-        # Reconstruct minimal decision results from kwargs
-        from engine.decision_motor import rank_events, identify_involved_person, calculate_scores
-        from datetime import date
-        res = rank_events(events, date.today())
-        res["scores"] = calculate_scores(res["all_ranked"], date.today())
-        if res["dominant"]:
-            res["dominant"]["involved_person"] = identify_involved_person(res["dominant"])
-        decision_results = res
-
-    dominant = decision_results.get("dominant")
-    scores = decision_results.get("scores", {})
-
-    if not dominant:
-        text = "O momento e de observacao. Nao ha convergencia clara para uma direcao forte agora."
-    else:
-        person = dominant.get("involved_person", {})
-        rt = dominant.get("reality_translation", {})
-
-        text = f"""
-1. 🔮 SEU MOMENTO AGORA
-👉 {rt.get('layer_1', 'Fase de ajustes importantes.')}
-
-Explicação:
-{rt.get('layer_2', 'O cenário pede atenção aos detalhes e paciência estratégica.')}
-
-💡 O que isso pede de você:
-- {rt.get('actions', ['Agir com critério'])[0]}
-- Observar repetições de temas
-
-2. 👤 QUEM ESTÁ ENVOLVIDO
-👉 {person.get('type', 'Alguém próximo')}
-
-Função: {person.get('role', 'Influência direta')}
-Dinâmica: {person.get('dynamic', 'Testa limites')}
-Impacto: {person.get('impact', 'Moderado')}
-
-3. ⏳ LINHA DO TEMPO
-AGORA: Fase de {dominant.get('tone', 'transição')}
-PRÓXIMO PICO: {dominant.get('time_window', {}).get('peak', 'Em breve')}
-DEPOIS: Consolidação dos ajustes
-
-4. 📊 SCORES
-Amor: {scores.get('amor', 5.0)}/10
-Carreira: {scores.get('carreira', 5.0)}/10
-Dinheiro: {scores.get('dinheiro', 5.0)}/10
-Saúde: {scores.get('saude', 5.0)}/10
-
-5. ⚠️ ALERTAS
-- {rt.get('risks', ['Risco de agir por impulso'])[0]}
-
-6. 🚀 DIREÇÃO PRÁTICA
-- {rt.get('actions', ['Observar o cenário'])[0]}
-- Evitar conclusões precipitadas
-"""
-
-    return {
-        "text": text.strip(),
-        "model": "local-fallback",
-        "provider": "local-fallback",
-        "strategy": "template",
-    }
-
-def build_narrative_prompt(
-    analysis: dict[str, Any],
-    events: list[dict[str, Any]],
-    event_summary: dict[str, Any],
+    domains: list[dict[str, Any]],
     confidence: dict[str, Any],
     uncertainties: list[dict[str, Any]],
-    forecast_360: dict[str, Any] | None = None,
-    timeline: dict[str, Any] | None = None,
-    life_episodes: list[dict[str, Any]] | None = None,
-    turning_points: list[dict[str, Any]] | None = None,
+    plan: dict[str, Any],
+    forecast_360: dict[str, Any],
+    predictive_insights: dict[str, Any] | None = None,
+    *,
+    reason_override: str | None = None,
 ) -> dict[str, Any]:
+    area_forecasts = list(forecast_360.get("areas_da_vida", []))
+    turning_points = list(forecast_360.get("turning_points", []))
+    purpose_forecast = dict(forecast_360.get("proposito") or {})
+    timeline_summaries = dict(forecast_360.get("timelines") or {})
+    house_forecasts = list(forecast_360.get("casas", []))
+    predictive_insights = dict(predictive_insights or {})
+    strongest_predictive = next(iter(predictive_insights.get("detected_events", [])), None)
 
-    confidence_level = confidence.get("level", "low")
+    if area_forecasts:
+        ranked_areas = sorted(
+            area_forecasts,
+            key=lambda item: (item.get("status") != "active", -float(item.get("probability", 0.0))),
+        )
+        lead_houses = sorted(
+            house_forecasts,
+            key=lambda item: (item.get("status") != "active", -float(item.get("probability", 0.0))),
+        )[:4]
+        paragraphs = [str(forecast_360.get("summary", "")).strip()]
+        if strongest_predictive:
+            paragraphs.append(format_prediction_block(strongest_predictive))
+            paragraphs.append(
+                (
+                    "Impacto: "
+                    + str(strongest_predictive.get("impact", ""))
+                    + " Risco: "
+                    + str(strongest_predictive.get("risk", ""))
+                    + " Ação: "
+                    + str(strongest_predictive.get("recommended_action", ""))
+                ).strip()
+            )
 
-    if confidence_level == "high":
-        strategy = "llm"
-        reason = "high-confidence-convergence"
+        if timeline_summaries:
+            short_term = dict(timeline_summaries.get("short_term") or {})
+            mid_term = dict(timeline_summaries.get("mid_term") or {})
+            long_term = dict(timeline_summaries.get("long_term") or {})
+            paragraphs.append(f"Curto prazo: {short_term.get('summary', 'Os proximos movimentos ainda estao se formando.')}")
+            paragraphs.append(f"Proximos 12 meses: {mid_term.get('summary', 'O ano segue pedindo leitura por etapas.')}")
+            paragraphs.append(f"Tendencia maior: {long_term.get('summary', 'O ciclo mais longo ainda esta em abertura.')}")
+
+        area_lines = []
+        for area in area_forecasts:
+            peak_dates = list(area.get("peak_dates") or [])
+            peak_clause = f" Pico em {format_date_pt(peak_dates[0])}." if peak_dates else ""
+            area_lines.append(
+                f"{area['label']}: {area.get('what_tends_to_happen', area['label'])} {area.get('why_now', '')}{peak_clause}".strip()
+            )
+        if area_lines:
+            paragraphs.append("Areas da vida:\n- " + "\n- ".join(area_lines))
+
+        if purpose_forecast:
+            paragraphs.append(
+                (
+                    f"Proposito e direcao: {purpose_forecast.get('summary', 'Seu eixo de sentido esta em reorganizacao.')} "
+                    f"{purpose_forecast.get('current_focus', '')} {purpose_forecast.get('long_arc', '')}"
+                ).strip()
+            )
+
+        if turning_points:
+            turning_text = "; ".join(
+                f"{format_date_pt(item['date'])} - {item['headline']}" for item in turning_points[:4]
+            )
+            paragraphs.append(f"Datas de virada: {turning_text}.")
+
+        if lead_houses:
+            house_lines = [
+                f"{house['label']}: {house.get('reading') or house.get('what_tends_to_happen')}"
+                for house in lead_houses
+            ]
+            paragraphs.append("Casas em maior destaque:\n- " + "\n- ".join(house_lines))
+
+        if uncertainties:
+            paragraphs.append(
+                f"Ponto de cautela: {uncertainties[0]['message']} Observe repeticao antes de tratar isso como fato fechado."
+            )
+
+        paragraphs.append(f"Confiança geral: {confidence.get('level', 'low')}.")
+        text = polish_portuguese("\n\n".join(part for part in paragraphs if part))
+    elif not events:
+        text = (
+            "O periodo nao mostra convergencia suficiente para previsoes fortes. "
+            "Neste momento, a leitura mais honesta e observar repeticao de temas antes de concluir direcao."
+        )
     else:
-        strategy = "template"
-        reason = "template-cheaper-and-sufficient"
+        lead_event = events[0]
+        lead_domain = domains[0]["domain_label"] if domains else str(
+            lead_event.get("domain") or lead_event.get("category") or "um dominio central"
+        )
+        lead_title = str(
+            lead_event.get("title")
+            or lead_event.get("event")
+            or lead_event.get("description")
+            or "O tema principal entrou em movimento."
+        )
+        lead_effect = str(
+            lead_event.get("effect")
+            or lead_event.get("summary")
+            or "isso tende a gerar ajustes praticos e observaveis."
+        )
+        lead_recommendations = [
+            str(item)
+            for item in list(lead_event.get("recommendations") or [])[:2]
+        ]
+        lead_window = dict(lead_event.get("time_window") or {})
+        peak_date = lead_window.get("peak") or lead_window.get("start")
+        secondary_clause = ""
+        if len(events) > 1:
+            secondary_titles = ", ".join(event["title"].lower() for event in events[1:3])
+            secondary_clause = f" Ao fundo, tambem aparecem {secondary_titles}."
+
+        timing_clause = ""
+        if peak_date:
+            timing_clause = f" A data-pico mais sensível deste eixo cai em torno de {format_date_pt(peak_date)}."
+
+        uncertainty_clause = ""
+        if uncertainties:
+            uncertainty_clause = (
+                f" Ainda assim, ha incerteza em {uncertainties[0]['domain'].replace('_', ' ')}, "
+                "entao vale observar se o tema se repete antes de cravar desfecho."
+            )
+
+        text = (
+            f"O eixo mais ativo agora e {lead_domain}, com intensidade "
+            f"{INTENSITY_LABELS.get(str(lead_event['intensity']), str(lead_event['intensity']))}. "
+            f"{lead_title} Isso tende a se manifestar como {lead_effect.lower()} "
+            f"As orientacoes mais uteis agora sao: {' '.join(lead_recommendations) or 'agir com criterio, observar repeticao e evitar conclusoes precipitadas.'}."
+            f"{timing_clause}{secondary_clause}{uncertainty_clause} "
+            f"O nivel de confianca geral desta leitura esta em {confidence.get('level', 'low')}."
+        )
 
     return {
-        "prompt": f"Analysis for {len(events)} events. Confidence: {confidence_level}.",
-        "events_used": events,
-        "domains_used": analysis.get("domain_analysis", {}).get("domains", []),
-        "analysis_digest": {
-            "confidence": confidence,
-            "uncertainties": uncertainties,
-            "forecast_360": forecast_360,
-        },
-        "plan": {
-            "strategy": strategy,
-            "signature": "premium_v1",
-            "reason": reason,
-            "complexity_score": 1.0 if strategy == "llm" else 0.3
-        }
+        "text": polish_portuguese(text),
+        "model": "local-fallback",
+        "provider": "local-fallback",
+        "usage": {"input_tokens": 0, "output_tokens": 0},
+        "strategy": "template",
+        "requested_strategy": plan["strategy"],
+        "strategy_reason": reason_override or plan["reason"],
+        "complexity_score": plan["complexity_score"],
+        "prompt_event_count": len(events),
     }
+
 
 def generate_narrative_with_cache(
     prompt_data: dict[str, Any],
     cache: CacheClient,
-    decision_results: dict[str, Any],
 ) -> dict[str, Any]:
     prompt = str(prompt_data["prompt"])
+    events = list(prompt_data["events_used"])
+    domains = list(prompt_data["domains_used"])
+    confidence = dict(prompt_data["analysis_digest"]["confidence"])
+    uncertainties = list(prompt_data["analysis_digest"]["uncertainties"])
     plan = dict(prompt_data["plan"])
 
-    if plan["strategy"] != "llm" or not settings.openrouter_api_key:
+    if plan["strategy"] != "llm":
         return {
-            **_build_local_fallback(prompt_data["events_used"], decision_results),
+            **_build_local_fallback(
+                events,
+                domains,
+                confidence,
+                uncertainties,
+                plan,
+                prompt_data["analysis_digest"].get("forecast_360", {}),
+                prompt_data["analysis_digest"].get("special_forecasts", {}).get("predictive_insights", {}),
+            ),
             "cached": False,
         }
 
-    cache_key = _llm_cache_key(plan["signature"], settings.openrouter_model)
-    cached = cache.get_cache(cache_key)
-    if cached:
-        return {**cached, "cached": True}
+    if not settings.openrouter_api_key:
+        return {
+            **_build_local_fallback(
+                events,
+                domains,
+                confidence,
+                uncertainties,
+                plan,
+                prompt_data["analysis_digest"].get("forecast_360", {}),
+                prompt_data["analysis_digest"].get("special_forecasts", {}).get("predictive_insights", {}),
+                reason_override="openrouter-disabled",
+            ),
+            "cached": False,
+        }
+
+    primary_cache_key = _llm_cache_key(plan["signature"], settings.openrouter_model)
+    cached_primary = cache.get_cache(primary_cache_key)
+    if cached_primary is not None:
+        return {**cached_primary, "cached": True}
 
     try:
-        result = _call_openrouter(prompt, settings.openrouter_model)
-        cache.set_cache(cache_key, result, settings.llm_cache_ttl)
-        return {**result, "cached": False}
-    except Exception:
-        return {
-            **_build_local_fallback(prompt_data["events_used"], decision_results),
-            "cached": False,
+        primary_result = _call_openrouter(prompt, settings.openrouter_model)
+        enriched_primary = {
+            **primary_result,
+            "strategy": plan["strategy"],
+            "requested_strategy": plan["strategy"],
+            "strategy_reason": plan["reason"],
+            "complexity_score": plan["complexity_score"],
+            "prompt_event_count": len(events),
         }
+        cache.set_cache(primary_cache_key, enriched_primary, settings.llm_cache_ttl)
+        return {**enriched_primary, "cached": False}
+    except Exception:
+        fallback_cache_key = _llm_cache_key(plan["signature"], settings.openrouter_fallback_model)
+        cached_fallback = cache.get_cache(fallback_cache_key)
+        if cached_fallback is not None:
+            return {**cached_fallback, "cached": True}
+
+        try:
+            fallback_result = _call_openrouter(prompt, settings.openrouter_fallback_model)
+            enriched_fallback = {
+                **fallback_result,
+                "strategy": plan["strategy"],
+                "requested_strategy": plan["strategy"],
+                "strategy_reason": plan["reason"],
+                "complexity_score": plan["complexity_score"],
+                "prompt_event_count": len(events),
+            }
+            cache.set_cache(fallback_cache_key, enriched_fallback, settings.llm_cache_ttl)
+            return {**enriched_fallback, "cached": False}
+        except Exception:
+            return {
+                **_build_local_fallback(
+                events,
+                domains,
+                confidence,
+                uncertainties,
+                plan,
+                prompt_data["analysis_digest"].get("forecast_360", {}),
+                prompt_data["analysis_digest"].get("special_forecasts", {}).get("predictive_insights", {}),
+                reason_override="openrouter-failed-fallback",
+            ),
+            "cached": False,
+            }

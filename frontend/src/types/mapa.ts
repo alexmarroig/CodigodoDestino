@@ -2,14 +2,116 @@ export type Intensity = 'high' | 'medium' | 'low'
 
 export type BirthTimePrecision = 'exact' | 'window' | 'unknown'
 export type BirthTimeWindow = 'morning' | 'afternoon' | 'evening'
+export type RelationshipStatus =
+  | 'single'
+  | 'dating'
+  | 'engaged'
+  | 'married'
+  | 'separated'
+  | 'divorced'
+  | 'widowed'
+  | 'unknown'
+export type LivingStatus = 'alive' | 'deceased' | 'unknown'
+
+export type FamilyRelationshipQuality = 'close' | 'distant' | 'conflict' | 'absent' | 'unknown'
 
 export type UserContext = {
-  relationship_status?: 'single' | 'dating' | 'married' | 'separated' | 'divorced' | 'widowed' | null
+  relationship_status?: RelationshipStatus
+  current_partner_role?: 'girlfriend' | 'boyfriend' | 'wife' | 'husband' | 'partner' | 'unknown'
   employment_status?: 'employed' | 'unemployed' | 'self_employed' | 'student' | 'retired' | null
   has_children?: boolean | null
-  living_situation?: 'alone' | 'with_partner' | 'with_family' | 'shared' | null
+  father_status?: LivingStatus
+  mother_status?: LivingStatus
   father_present?: boolean | null
   mother_present?: boolean | null
+  current_city?: string
+  lives_alone?: boolean | null
+  father_relationship?: FamilyRelationshipQuality
+  mother_relationship?: FamilyRelationshipQuality
+  has_siblings?: boolean | null
+  experienced_adoption?: boolean | null
+  experienced_abandonment?: boolean | null
+  major_trauma_notes?: string
+  major_loss_notes?: string
+  marked_separation?: boolean | null
+  experienced_betrayal?: boolean | null
+  experienced_depression?: boolean | null
+  recurring_feeling?: string
+  city_change?: boolean | null
+  country_change?: boolean | null
+  financial_crisis?: boolean | null
+  important_death?: string
+  living_situation?: string | 'alone' | 'with_partner' | 'with_family' | 'shared' | null
+}
+
+export type DestinyCertaintyLevel = 'chance' | 'tendency' | 'must' | 'will'
+
+export type AstroProvenanceDriver = {
+  technique: string
+  label: string
+  aspect?: string
+  planet_a?: string
+  planet_b?: string
+  orb_degrees?: number
+  transit_house?: number
+  natal_house?: number
+  brady_line?: string | null
+  weight_reason?: string
+  score?: number
+}
+
+export type AstroProvenance = {
+  primary_drivers: AstroProvenanceDriver[]
+  supporting_techniques: string[]
+  cluster: {
+    technique_count: number
+    theme_convergence: number
+    effective_independent_signals: number
+    rule_hits: string[]
+  }
+  dignity_note?: string | null
+  timing: {
+    mode: string
+    start?: string
+    end?: string
+    peak?: string
+    trigger?: string
+  }
+  excluded: string[]
+  confidence_caps: string[]
+  soft_aspect_note?: string | null
+}
+
+export type DestinySection = {
+  id: string
+  title: string
+  order: number
+  summary: string
+  body: string
+  certainty_level: DestinyCertaintyLevel
+  certainty_label: string
+  evidence: string[]
+  technical_detail?: string
+  astro_provenance?: AstroProvenance
+}
+
+export type RelatedPerson = {
+  name: string
+  relation:
+    | 'spouse'
+    | 'partner'
+    | 'boyfriend'
+    | 'girlfriend'
+    | 'father'
+    | 'mother'
+    | 'child'
+    | 'friend'
+    | 'sibling'
+    | 'in_law'
+    | 'other'
+  birth_date?: string
+  birth_time?: string
+  birth_time_precision?: BirthTimePrecision | null
 }
 
 export type RealityTranslation = {
@@ -30,7 +132,8 @@ export type MapaRequest = {
   reference_date?: string
   birth_time_precision?: BirthTimePrecision | null
   birth_time_window?: BirthTimeWindow | null
-  user_context?: UserContext | null
+  user_context?: UserContext
+  related_people?: RelatedPerson[]
 }
 
 export type TimeWindow = {
@@ -192,10 +295,14 @@ export type ForecastHorizon = {
 
 export type ForecastTimelineHit = {
   period: string
+  period_key?: string
   status: 'active' | 'watch' | 'quiet'
   probability: number
   summary: string
   peak_date?: string | null
+  house?: number
+  granularity?: 'month' | 'quarter'
+  horizon?: 'short' | 'mid' | 'long'
 }
 
 export type LifeEventWindow = {
@@ -296,6 +403,7 @@ export type ForecastHouseEntry = {
   timeline_hits: ForecastTimelineHit[]
   peak_dates: string[]
   what_tends_to_happen: string
+  reading: string
   signals: string[]
 }
 
@@ -306,7 +414,31 @@ export type TimelinePeriodEntry = {
   horizon: 'short' | 'mid' | 'long'
   start: string
   end: string
+  peak: string
+  signals: string[]
+  domains: DomainAnalysisEntry[]
+  houses: Array<{
+    house: number
+    domain: string
+    domain_label: string
+    status: 'active' | 'watch'
+    probability: number
+    confidence: 'high' | 'medium'
+    signals: string[]
+    time_window: TimeWindow
+    summary: string
+    tone: 'supportive' | 'challenging' | 'mixed'
+  }>
+  events: ForecastEvent[]
+  turning_point_score: number
   headline: string
+}
+
+export type ForecastTimelineSummary = {
+  label: string
+  summary: string
+  focus_areas: string[]
+  peak_dates: string[]
 }
 
 export type LifeEpisode = {
@@ -328,6 +460,30 @@ export type TurningPoint = {
   probability: number
   headline: string
   summary: string
+}
+
+export type PredictiveInsight = {
+  category_key: string
+  event_type: string
+  probability_level: 'Descartar' | 'Baixa' | 'Moderada' | 'Alta'
+  independent_signals: number
+  probability_score: number
+  time_window: TimeWindow & { label: string }
+  techniques: string[]
+  signals: string[]
+  rule_hits: string[]
+  exact_dates: string[]
+  explanation: string
+  domains: string[]
+  what_is_happening: string
+  what_this_may_look_like_in_real_life: string[]
+  possible_scenarios: string[]
+  impact: string
+  risk: string
+  recommended_action: string
+  formatted_block: string
+  certainty_level?: DestinyCertaintyLevel
+  certainty_label?: string
 }
 
 export type PurposeForecast = {
@@ -380,6 +536,8 @@ export type MapaResponse = {
   }
   analysis?: {
     profile_quality: ProfileQuality
+    user_context?: UserContext
+    related_people?: RelatedPerson[]
     theme_map: Record<string, string>
     transits?: {
       reference_utc: string
@@ -431,6 +589,15 @@ export type MapaResponse = {
   confidence: AnalysisConfidence
   uncertainties: Uncertainty[]
   techniques_used: string[]
+  predictive_insights?: {
+    detected_events: PredictiveInsight[]
+    watchlist: PredictiveInsight[]
+    summary: {
+      detected_count: number
+      watchlist_count: number
+      strongest_category: string | null
+    }
+  }
   events: ForecastEvent[]
   event_summary: {
     total: number
@@ -449,9 +616,9 @@ export type MapaResponse = {
     critical_periods?: ExactCriticalPeriod[]
     life_events?: LifeEvent[]
     timelines: {
-      short_term: string
-      mid_term: string
-      long_term: string
+      short_term: ForecastTimelineSummary
+      mid_term: ForecastTimelineSummary
+      long_term: ForecastTimelineSummary
     }
     key_dates: string[]
   }
@@ -480,6 +647,7 @@ export type MapaResponse = {
     prompt_event_count: number
     cached?: boolean
   }
+  destiny_sections?: DestinySection[]
   metadata: {
     engine_version: string
     cache_hit: boolean

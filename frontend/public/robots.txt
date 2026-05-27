@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://codigododestino.com.br/sitemap.xml

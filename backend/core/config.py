@@ -89,7 +89,7 @@ class Settings:
     max_events_in_prompt: int = _get_int("MAX_EVENTS_IN_PROMPT", 3)
     llm_complexity_threshold: float = _get_float("LLM_COMPLEXITY_THRESHOLD", 0.55)
     llm_min_high_intensity_events: int = _get_int("LLM_MIN_HIGH_INTENSITY_EVENTS", 1)
-    llm_max_tokens: int = _get_int("LLM_MAX_TOKENS", 320)
+    llm_max_tokens: int = _get_int("LLM_MAX_TOKENS", 1500)
     llm_force_for_master_numbers: bool = _get_bool("LLM_FORCE_FOR_MASTER_NUMBERS", True)
 
     openrouter_api_key: str = _get_env("OPENROUTER_API_KEY", "")
@@ -113,10 +113,20 @@ class Settings:
         "OPENROUTER_APP_NAME",
         "CodigodoDestino",
     )
+    astrology_database_url: str = _get_env("ASTROLOGY_DATABASE_URL", "")
+    astrology_school_code: str = _get_env("ASTROLOGY_SCHOOL_CODE", "luz_e_sombra")
+    astrology_database_timeout_seconds: float = _get_float("ASTROLOGY_DATABASE_TIMEOUT_SECONDS", 45.0)
     cors_allow_origins: list[str] = field(
         default_factory=lambda: _get_list(
             "CORS_ALLOW_ORIGINS",
-            ["http://localhost:3000", "http://127.0.0.1:3000"],
+            [
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                "http://localhost:3001",
+                "http://127.0.0.1:3001",
+                "http://localhost:3002",
+                "http://127.0.0.1:3002",
+            ],
         )
     )
 

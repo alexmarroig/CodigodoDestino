@@ -94,7 +94,17 @@ def test_narrative_prompt_uses_template_strategy_for_low_complexity() -> None:
         },
         {"level": "low", "score": 0.44, "reason": "pouca convergencia", "profile_quality": "A"},
         [],
-        {"summary": "Os proximos meses puxam carreira."},
+        {
+            "summary": "Os proximos meses puxam carreira.",
+            "timelines": {
+                "short_term": {"summary": "Abril e maio concentram o aperto.", "peak_dates": ["2026-04-20"]},
+                "mid_term": {"summary": "O ano exige reposicionamento.", "peak_dates": ["2026-06-11"]},
+                "long_term": {"summary": "O ciclo maior reorganiza direcao.", "peak_dates": ["2027-03-03"]},
+            },
+            "casas": [],
+            "areas_da_vida": [],
+            "turning_points": [],
+        },
         {"periods": []},
         [],
         [],
@@ -121,7 +131,17 @@ def test_narrative_prompt_uses_llm_for_high_confidence_convergence() -> None:
             "profile_quality": "A",
         },
         [],
-        {"summary": "Os proximos meses puxam carreira."},
+        {
+            "summary": "Os proximos meses puxam carreira.",
+            "timelines": {
+                "short_term": {"summary": "Abril e maio concentram o aperto.", "peak_dates": ["2026-04-20"]},
+                "mid_term": {"summary": "O ano exige reposicionamento.", "peak_dates": ["2026-06-11"]},
+                "long_term": {"summary": "O ciclo maior reorganiza direcao.", "peak_dates": ["2027-03-03"]},
+            },
+            "casas": [],
+            "areas_da_vida": [],
+            "turning_points": [],
+        },
         {"periods": []},
         [],
         [],
@@ -151,7 +171,7 @@ def test_local_fallback_handles_compact_events_without_description_field() -> No
     )
 
     assert "carreira e status" in result["text"]
-    assert "2026-04-20" in result["text"]
+    assert "20 de abril de 2026" in result["text"]
     assert result["provider"] == "local-fallback"
 
 
@@ -168,15 +188,28 @@ def test_local_fallback_prefers_forecast_360_when_available() -> None:
         },
         forecast_360={
             "summary": "Os proximos meses concentram movimento em carreira e financas.",
+            "timelines": {
+                "short_term": {"summary": "Abril e maio trazem cobranca direta.", "peak_dates": ["2026-04-20"]},
+                "mid_term": {"summary": "Ao longo do ano, o reposicionamento se consolida.", "peak_dates": ["2026-06-11"]},
+                "long_term": {"summary": "O ciclo mais longo aponta reconstrução gradual.", "peak_dates": ["2027-03-11"]},
+            },
             "areas_da_vida": [
                 {
                     "label": "Carreira",
                     "status": "active",
                     "probability": 0.84,
+                    "why_now": "Casa 10 e temas de status ganharam mais movimento.",
                     "what_tends_to_happen": "Carreira entra em reorganizacao com decisoes mais concretas.",
                     "short_term": {"summary": "Abril e maio trazem cobranca e definicao."},
                     "mid_term": {"summary": "Ao longo do ano, o reposicionamento se consolida."},
+                    "long_term": {"summary": "A direcao profissional amadurece em novo patamar."},
                     "peak_dates": ["2026-06-11"],
+                }
+            ],
+            "casas": [
+                {
+                    "label": "Casa 10 - Carreira e status",
+                    "reading": "Casa 10 tende a puxar reposicionamento publico e profissional.",
                 }
             ],
             "turning_points": [{"date": "2026-06-11", "headline": "Carreira ganha pico de movimento"}],
@@ -184,4 +217,5 @@ def test_local_fallback_prefers_forecast_360_when_available() -> None:
     )
 
     assert "Carreira" in result["text"]
-    assert "2026-06-11" in result["text"]
+    assert "11 de junho de 2026" in result["text"]
+    assert "Curto prazo" in result["text"]

@@ -3,12 +3,19 @@
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
-interface Block {
-  title: string
-  content: string
+type PremiumNarrativeProps = {
+  narrative: { text?: string }
+  decisionResults?: {
+    scores?: {
+      amor?: number
+      carreira?: number
+      dinheiro?: number
+      saude?: number
+    }
+  }
 }
 
-export function PremiumNarrative({ narrative, decisionResults }: any) {
+export function PremiumNarrative({ narrative, decisionResults }: PremiumNarrativeProps) {
   const text = narrative.text || ''
   const blocks = parseBlocks(text)
   const scores = decisionResults?.scores || {}
@@ -60,7 +67,6 @@ function NarrativeBlock({ title, content, index }: { title: string, content: str
   const layer1 = lines.find(l => l.startsWith('👉')) || lines[0] || ''
   const explanation = lines.find(l => !l.startsWith('👉') && !l.startsWith('💡') && !l.startsWith('⚠️') && !l.startsWith('-')) || ''
   const bullets = lines.filter(l => l.startsWith('-'))
-  const specialAlerts = lines.filter(l => l.startsWith('⚠️'))
 
   return (
     <motion.article
@@ -107,7 +113,7 @@ function NarrativeBlock({ title, content, index }: { title: string, content: str
             className="overflow-hidden"
           >
             <div className="pt-4 text-sm leading-relaxed text-[var(--muted-soft)] italic">
-              A análise profunda revela que este movimento não é apenas circunstancial, mas um ponto de maturação necessário para sua evolução de longo prazo. O foco deve ser na integração consciente desses temas.
+              {lines.filter(l => l.startsWith('💡')).map(l => l.replace('💡', '').trim()).join(' ')}
             </div>
           </motion.div>
         )}
@@ -116,7 +122,7 @@ function NarrativeBlock({ title, content, index }: { title: string, content: str
   )
 }
 
-function ScoreCard({ label, score }: { label: string, score: number }) {
+function ScoreCard({ label, score }: { label: string, score?: number }) {
   const percentage = (score || 0) * 10
   return (
     <div className="space-y-3">
@@ -137,7 +143,6 @@ function ScoreCard({ label, score }: { label: string, score: number }) {
 
 function parseBlocks(text: string): Record<number, string> {
   const blocks: Record<number, string> = {}
-  const regex = /(\d\.\s[^123456]+)/g
   const parts = text.split(/\d\.\s/)
   parts.forEach((part, i) => {
     if (i > 0) blocks[i] = part.trim()

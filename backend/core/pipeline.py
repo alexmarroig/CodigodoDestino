@@ -20,11 +20,19 @@ from db.models import MapRequest
 from db.session import SessionLocal, initialize_database
 from engine.adaptive_learning_engine import get_user_rule_overrides
 from engine.analysis import assess_profile_quality, build_multilayer_analysis, get_house_from_longitude
+from engine.astrology_database_bridge import (
+    apply_editorial_overrides,
+    boost_predictive_from_clusters,
+    fetch_editorial_enrichment,
+)
 from engine.events import build_domain_analysis, generate_events, summarize_events
 from engine.reality_translation import enrich_events_with_reality
-from engine.decision_motor import rank_events, identify_involved_person
+from engine.decision_motor import calculate_scores, identify_involved_person, rank_events
 from engine.life_story_engine import build_life_story
 from engine.narrative import build_narrative_prompt, generate_narrative_with_cache
+from engine.destiny_narrative import build_destiny_sections
+from engine.predictive_insights import build_predictive_insights
+from core.context_memory import persist_user_context_memory
 from engine.question_engine import suggest_feedback_questions
 from engine.rules_engine import build_specialized_insights
 from engine.timeline import build_forecast_360, inject_exact_timing_into_forecast
@@ -66,9 +74,12 @@ def _normalize_payload(payload: dict[str, Any], reference_date: date) -> dict[st
         normalized["time"] = payload["time"].isoformat() if hasattr(payload["time"], "isoformat") else str(payload["time"])
     normalized["birth_time_precision"] = normalized.get("birth_time_precision")
     normalized["birth_time_window"] = normalized.get("birth_time_window")
-    if normalized.get("user_context") is not None:
-        ctx = normalized["user_context"]
-        normalized["user_context"] = ctx.model_dump(exclude_none=True) if hasattr(ctx, "model_dump") else ctx
+    ctx = normalized.get("user_context")
+    if ctx is not None and hasattr(ctx, "model_dump"):
+        normalized["user_context"] = ctx.model_dump(exclude_none=True)
+    else:
+        normalized["user_context"] = dict(ctx or {})
+    normalized["related_people"] = list(normalized.get("related_people") or [])
     return normalized
 
 
@@ -84,6 +95,27 @@ def _hydrate_cached_response(cached_response: dict[str, Any], request_id: str, c
     }
     cached_response.setdefault("feedback_questions", [])
     cached_response.setdefault("user_rule_overrides", {})
+    if "destiny_sections" not in cached_response and isinstance(cached_response.get("analysis"), dict):
+        input_block = dict(cached_response.get("input") or {})
+        reference_date = date.fromisoformat(str(input_block.get("reference_date")))
+        cached_response["destiny_sections"] = build_destiny_sections(
+            payload=input_block,
+            computed=cached_response.get("computed", {}),
+            analysis=cached_response["analysis"],
+            narrative=cached_response.get("narrative", {}),
+            forecast_360=cached_response.get("forecast_360", {}),
+            timeline=cached_response.get("timeline", {}),
+            life_episodes=cached_response.get("life_episodes", []),
+            turning_points=cached_response.get("turning_points", []),
+            reference_date=reference_date,
+        )
+    if "predictive_insights" not in cached_response and isinstance(cached_response.get("analysis"), dict):
+        input_block = dict(cached_response.get("input") or {})
+        reference_date = date.fromisoformat(str(input_block.get("reference_date")))
+        cached_response["predictive_insights"] = build_predictive_insights(
+            cached_response["analysis"],
+            reference_date=reference_date,
+        )
     if isinstance(cached_response.get("narrative"), dict):
         cached_response["narrative"]["cached"] = True
     return cached_response
@@ -220,6 +252,10 @@ def _build_astrology_snapshot(
     analysis["purpose_analysis"] = specialized["purpose"]
     analysis["exact_timing"] = specialized["exact_timing"]
     analysis["life_events"] = specialized["life_events"]
+    predictive_insights = build_predictive_insights(
+        analysis,
+        reference_date=date.fromisoformat(payload["reference_date"]),
+    )
     domain_bundle = build_domain_analysis(analysis)
     events = generate_events(analysis, date.fromisoformat(payload["reference_date"]))
     enrich_events_with_reality(events, payload.get("user_context"))
@@ -237,7 +273,7 @@ def _build_astrology_snapshot(
     # Calculate 0-10 Scores
     scores = calculate_scores(decision_results["all_ranked"], date.fromisoformat(payload["reference_date"]))
     decision_results["scores"] = scores
-        secondary_event["involved_person"] = identify_involved_person(secondary_event)
+    analysis["decision_results"] = decision_results
     forecast_360 = build_forecast_360(
         payload=payload,
         natal_ephemeris=cached_ephemeris,
@@ -261,6 +297,7 @@ def _build_astrology_snapshot(
     )
 
     analysis["domain_analysis"] = domain_bundle
+    analysis["predictive_insights"] = predictive_insights
     analysis["timeline"] = forecast_360["timeline"]
     analysis["life_story"] = life_story
     analysis["feedback_questions"] = feedback_questions
@@ -283,6 +320,7 @@ def _build_astrology_snapshot(
         "confidence": domain_bundle["confidence"],
         "uncertainties": domain_bundle["uncertainties"],
         "techniques_used": analysis["techniques_used"],
+        "predictive_insights": predictive_insights,
         "user_rule_overrides": user_rule_overrides,
         "feedback_questions": feedback_questions,
         "forecast_360": forecast_360,
@@ -297,7 +335,6 @@ def _build_astrology_snapshot(
         "exact_timing": specialized["exact_timing"],
         "life_events": specialized["life_events"],
         "life_story": life_story,
-        "decision_results": computed_snapshot["decision_results"],
         "decision_results": decision_results,
     }
     return computed_snapshot, ephemeris_cache_hit
@@ -316,6 +353,13 @@ def _resolve_computed_snapshot(
         if isinstance(cached_snapshot.get("analysis"), dict):
             cached_snapshot["analysis"].setdefault("feedback_questions", [])
             cached_snapshot["analysis"].setdefault("user_rule_overrides", {})
+            if "predictive_insights" not in cached_snapshot:
+                reference_date = date.fromisoformat(str(payload["reference_date"]))
+                cached_snapshot["predictive_insights"] = build_predictive_insights(
+                    cached_snapshot["analysis"],
+                    reference_date=reference_date,
+                )
+            cached_snapshot["analysis"]["predictive_insights"] = cached_snapshot["predictive_insights"]
         return cached_snapshot, True, True
 
     computed_snapshot, ephemeris_cache_hit = _build_astrology_snapshot(payload, cache, db)
@@ -372,7 +416,33 @@ def run_pipeline(
         computed_snapshot["life_episodes"],
         computed_snapshot["turning_points"],
     )
-    narrative = generate_narrative_with_cache(prompt_data, cache, decision_results)
+    narrative = generate_narrative_with_cache(prompt_data, cache)
+
+    editorial_enrichment = fetch_editorial_enrichment(normalized_payload)
+    if editorial_enrichment:
+        computed_snapshot["analysis"]["astrology_database"] = editorial_enrichment
+        boost_predictive_from_clusters(computed_snapshot["analysis"], editorial_enrichment)
+
+    destiny_sections = build_destiny_sections(
+        payload=normalized_payload,
+        computed={
+            "utc": computed_snapshot["utc"],
+            "astrology": computed_snapshot["astrology"],
+            "aspects": computed_snapshot["aspects"],
+            "numerology": computed_snapshot["numerology"],
+        },
+        analysis=computed_snapshot["analysis"],
+        narrative=narrative,
+        forecast_360=computed_snapshot["forecast_360"],
+        timeline=computed_snapshot["timeline"],
+        life_episodes=computed_snapshot["life_episodes"],
+        turning_points=computed_snapshot["turning_points"],
+        reference_date=reference_date,
+    )
+    destiny_sections = apply_editorial_overrides(destiny_sections, editorial_enrichment)
+
+    if normalized_payload.get("user_id") and normalized_payload.get("user_context"):
+        persist_user_context_memory(normalized_payload, db)
 
     response = {
         "request_id": request_id,
@@ -388,6 +458,7 @@ def run_pipeline(
         "confidence": computed_snapshot["confidence"],
         "uncertainties": computed_snapshot["uncertainties"],
         "techniques_used": computed_snapshot["techniques_used"],
+        "predictive_insights": computed_snapshot["predictive_insights"],
         "user_rule_overrides": computed_snapshot["user_rule_overrides"],
         "feedback_questions": computed_snapshot["feedback_questions"],
         "events": computed_snapshot["events"],
@@ -400,6 +471,7 @@ def run_pipeline(
         "life_events": computed_snapshot["life_events"],
         "life_story": computed_snapshot["life_story"],
         "narrative": narrative,
+        "destiny_sections": destiny_sections,
         "metadata": {
             "engine_version": settings.engine_version,
             "cache_hit": False,
