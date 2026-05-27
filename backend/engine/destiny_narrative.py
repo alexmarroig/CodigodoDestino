@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from engine.certainty import CERTAINTY_LABELS, apply_certainty_prefix, certainty_from_signal_count
+from engine.astro_provenance import format_provenance_technical_block
+from engine.certainty import CERTAINTY_LABELS, apply_certainty_prefix, resolve_certainty
 from engine.date_formatting import format_date_pt, format_time_window_label
 from engine.event_subtypes import build_enriched_prediction_block
 from engine.portuguese_text import polish_portuguese
@@ -122,8 +123,9 @@ def _section(
     certainty_level: str = "tendency",
     evidence: list[str] | None = None,
     technical_detail: str | None = None,
+    astro_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    section: dict[str, Any] = {
         "id": section_id,
         "title": title,
         "summary": polish_portuguese(summary.strip()),
@@ -133,6 +135,22 @@ def _section(
         "evidence": [polish_portuguese(str(item)) for item in (evidence or [])[:6]],
         "technical_detail": polish_portuguese(str(technical_detail or "").strip()),
     }
+    if astro_provenance:
+        section["astro_provenance"] = astro_provenance
+    return section
+
+
+def _event_certainty(event: dict[str, Any] | None) -> str:
+    if not event:
+        return "tendency"
+    if event.get("certainty_level"):
+        return str(event["certainty_level"])
+    return resolve_certainty(
+        int(event.get("independent_signals") or 0),
+        [],
+        category_key=str(event.get("category_key") or ""),
+        theme_convergence=int(event.get("theme_convergence") or 0),
+    )
 
 
 def _format_date_window(window: dict[str, Any] | None, reference_date: date | None = None) -> str:
@@ -164,7 +182,7 @@ def _prediction_body(event: dict[str, Any], reference_date: date | None = None) 
     avoidability = str(event.get("avoidability_summary") or "")
     lines: list[str] = []
     if primary_scenario:
-        lines.append(f"O que: {primary_scenario}")
+        lines.append(f"O quê: {primary_scenario}")
     if when_label:
         lines.append(f"Quando: {when_label}")
     if avoidability:
@@ -181,8 +199,10 @@ def _prediction_technical_detail(event: dict[str, Any]) -> str:
     else:
         base = format_prediction_block(event)
     quality = str(event.get("quality_summary") or "")
-    parts = [p for p in [base, quality] if p and p not in base]
-    return polish_portuguese("\n\n".join([base] + parts[1:]) if parts else base)
+    provenance = event.get("astro_provenance")
+    prov_block = format_provenance_technical_block(provenance) if provenance else ""
+    parts = [p for p in [base, quality, prov_block] if p and p not in base]
+    return polish_portuguese("\n\n".join(parts) if parts else base)
 
 
 def _strongest_predictive(predictive: dict[str, Any]) -> dict[str, Any] | None:
@@ -204,7 +224,7 @@ def _build_central_reading(
 
     technical_detail = ""
     if lead:
-        certainty = certainty_from_signal_count(lead["independent_signals"])
+        certainty = _event_certainty(lead)
         when = _format_date_window(lead.get("time_window"), reference_date)
         summary = f"{lead['event_type']} — {when}."
         body = _prediction_body(lead, reference_date)
@@ -410,9 +430,8 @@ def _build_relationships(
     rel_events = [e for e in all_events if e.get("category_key") == "relationships"]
     rup_events = [e for e in all_events if e.get("category_key") == "rupture"]
 
-    # Pick the strongest event for the lead
-    combined = [*rel_events, *rup_events]
-    lead = combined[0] if combined else None
+    # Prefer relationships-category events; rupture-only leads often overstate conflict.
+    lead = rel_events[0] if rel_events else (rup_events[0] if rup_events else None)
 
     # Contradiction check: both commitment (marriage_window/commitment) and
     # rupture detected → show "tensão entre aproximação e conflito" OR rank and pick
@@ -440,7 +459,7 @@ def _build_relationships(
         body_parts.append(f"Contexto atual: {placeholders['relationship_status']}.")
 
     if lead:
-        certainty = certainty_from_signal_count(lead["independent_signals"])
+        certainty = _event_certainty(lead)
 
         if contradictory and not is_saturn_h7:
             # Show the tension between approach and conflict
@@ -469,11 +488,27 @@ def _build_relationships(
             or (lead.get("time_window") or {}).get("formatted_label")
             or "período em formação"
         )
-        if subtype_what:
+        if lead.get("time_window"):
+            when_label = _format_date_window(lead["time_window"], reference_date) or when_label
+        if subtype_what and not (is_saturn_h7 and lead_subtype == "separacao_termino"):
             # Build 4-line human summary: O quê / Quando / Por quê / Evitar
             por_que_short = subtype_por_que.split(";")[0].strip() if subtype_por_que else ""
+            what_line = subtype_what
+            if lead_subtype == "separacao_termino" and lead.get("is_fatalistic"):
+                what_line = (
+                    "Pressão prolongada na área de parceria — pode exigir conversa de "
+                    f"definição com {partner_description}, não término automático."
+                )
             human_block = polish_portuguese(
-                f"O quê: {subtype_what}\n"
+                f"O quê: {what_line}\n"
+                f"Quando: {when_label}\n"
+                + (f"Por quê: {por_que_short}\n" if por_que_short else "")
+                + (f"Evitar: {subtype_avoidability}" if subtype_avoidability else "")
+            )
+            body_parts.append(human_block)
+        elif subtype_what and is_saturn_h7:
+            por_que_short = subtype_por_que.split(";")[0].strip() if subtype_por_que else ""
+            human_block = polish_portuguese(
                 f"Quando: {when_label}\n"
                 + (f"Por quê: {por_que_short}\n" if por_que_short else "")
                 + (f"Evitar: {subtype_avoidability}" if subtype_avoidability else "")
@@ -647,7 +682,7 @@ def _build_career_section(
         lead = career_events[0]
         summary = lead["event_type"]
         body = _prediction_body(lead, reference_date)
-        certainty = certainty_from_signal_count(lead["independent_signals"])
+        certainty = _event_certainty(lead)
     else:
         summary = "Carreira em observação — sem virada forte fechada agora."
         body = "O trabalho pede consistência. Grandes saltos dependem de janela que ainda está se formando."
@@ -789,7 +824,7 @@ def _build_future_events(predictive: dict[str, Any], reference_date: date) -> di
     max_certainty = "chance"
     order = {"chance": 0, "tendency": 1, "must": 2, "will": 3}
     for event in events:
-        certainty = certainty_from_signal_count(event["independent_signals"])
+        certainty = _event_certainty(event)
         if order[certainty] > order[max_certainty]:
             max_certainty = certainty
         subtype_label = event.get("subtype_label")
@@ -815,6 +850,7 @@ def _build_future_events(predictive: dict[str, Any], reference_date: date) -> di
         certainty_level=max_certainty,
         evidence=events[0].get("signals", [])[:4],
         technical_detail="\n\n---\n\n".join(technical_lines),
+        astro_provenance=events[0].get("astro_provenance"),
     )
 
 
@@ -867,7 +903,7 @@ def _build_conclusion(sections: list[dict[str, Any]], predictive: dict[str, Any]
     if central:
         parts.append(central["summary"])
     if lead:
-        certainty = certainty_from_signal_count(lead["independent_signals"])
+        certainty = _event_certainty(lead)
         parts.append(
             f"O eixo mais forte agora: {lead['event_type']} "
             f"{_format_date_window(lead.get('time_window'), reference_date)}."
@@ -881,7 +917,7 @@ def _build_conclusion(sections: list[dict[str, Any]], predictive: dict[str, Any]
         "A próxima virada exige decisão antes que o contexto decida por você."
     )
     if lead:
-        certainty = certainty_from_signal_count(lead["independent_signals"])
+        certainty = _event_certainty(lead)
         body = apply_certainty_prefix(
             f"O destino mais provável agora passa por {lead['event_type'].lower()}. "
             "Ignorar isso custa tempo, dinheiro e paz.",
@@ -893,7 +929,7 @@ def _build_conclusion(sections: list[dict[str, Any]], predictive: dict[str, Any]
         title="Conclusão final",
         summary=" ".join(parts)[:280] if parts else "Destino em movimento — leia as seções anteriores como um só fio.",
         body=body,
-        certainty_level=lead and certainty_from_signal_count(lead["independent_signals"]) or "tendency",
+        certainty_level=lead and _event_certainty(lead) or "tendency",
     )
 
 

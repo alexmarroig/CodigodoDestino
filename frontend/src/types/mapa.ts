@@ -46,6 +46,42 @@ export type UserContext = {
 
 export type DestinyCertaintyLevel = 'chance' | 'tendency' | 'must' | 'will'
 
+export type AstroProvenanceDriver = {
+  technique: string
+  label: string
+  aspect?: string
+  planet_a?: string
+  planet_b?: string
+  orb_degrees?: number
+  transit_house?: number
+  natal_house?: number
+  brady_line?: string | null
+  weight_reason?: string
+  score?: number
+}
+
+export type AstroProvenance = {
+  primary_drivers: AstroProvenanceDriver[]
+  supporting_techniques: string[]
+  cluster: {
+    technique_count: number
+    theme_convergence: number
+    effective_independent_signals: number
+    rule_hits: string[]
+  }
+  dignity_note?: string | null
+  timing: {
+    mode: string
+    start?: string
+    end?: string
+    peak?: string
+    trigger?: string
+  }
+  excluded: string[]
+  confidence_caps: string[]
+  soft_aspect_note?: string | null
+}
+
 export type DestinySection = {
   id: string
   title: string
@@ -56,6 +92,7 @@ export type DestinySection = {
   certainty_label: string
   evidence: string[]
   technical_detail?: string
+  astro_provenance?: AstroProvenance
 }
 
 export type RelatedPerson = {

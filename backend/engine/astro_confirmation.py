@@ -211,6 +211,56 @@ def _house_7_activated(signals: list[dict[str, Any]]) -> bool:
     return False
 
 
+_OUTER_GENERATIONAL: frozenset[str] = frozenset({"uranus", "neptune", "pluto"})
+_PARTNERSHIP_POINTS: frozenset[str] = frozenset({
+    "venus", "moon", "dsc", "descendant", "descendente",
+})
+
+
+def is_generational_outer_pair(signal: dict[str, Any]) -> bool:
+    """
+    Outer–outer pairs in progressions / solar arc (e.g. Neptune–Pluto) are cohort-level,
+    not individual event triggers.
+    """
+    technique = str(signal.get("technique") or "")
+    if technique not in {"progressions", "solar_arc", "solar_return"}:
+        return False
+    ev = signal.get("evidence") or {}
+    pa = _norm(str(ev.get("planet_a") or ""))
+    pb = _norm(str(ev.get("planet_b") or ""))
+    return bool(pa in _OUTER_GENERATIONAL and pb in _OUTER_GENERATIONAL)
+
+
+def filter_generational_pairs(signals: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Remove self-aspects and outer–outer generational pairs."""
+    return [
+        s for s in signals
+        if not is_self_aspect(s) and not is_generational_outer_pair(s)
+    ]
+
+
+def _slow_pressure_on_partnership(signals: list[dict[str, Any]]) -> bool:
+    """
+    True when a slow planet makes a tense aspect to partnership targets:
+    Casa 7, Descendente, Vênus or Lua (not merely a fast planet transiting Casa 7).
+    """
+    for s in signals:
+        ev = s.get("evidence") or {}
+        if _norm(str(ev.get("aspect") or "")) not in TENSE_ASPECTS:
+            continue
+        pa = _norm(str(ev.get("planet_a") or ""))
+        pb = _norm(str(ev.get("planet_b") or ""))
+        if pa not in SLOW_PLANETS and pb not in SLOW_PLANETS:
+            continue
+        if ev.get("transit_house") == 7 or ev.get("natal_house") == 7:
+            return True
+        if pa in _PARTNERSHIP_POINTS or pb in _PARTNERSHIP_POINTS:
+            return True
+        if pa in ANGLE_POINTS or pb in ANGLE_POINTS:
+            return True
+    return False
+
+
 def _has_afflicted_venus(signals: list[dict[str, Any]]) -> bool:
     """True if Venus appears in any tense aspect."""
     for s in signals:
@@ -299,7 +349,7 @@ def classify_relationship_conflict_subtype(
     str: one of 'separacao_termino' | 'briga_forte' | 'ciume_posse' |
          'afastamento_emocional' | 'conversa_seria' | 'tensao_leve'
     """
-    clean = filter_self_aspects(signals)
+    clean = filter_generational_pairs(signals)
     rule_codes: set[str] = {str(h.get("code") or "") for h in rule_hits}
 
     # Fast-only with single technique → cap at tensao_leve
@@ -318,11 +368,10 @@ def classify_relationship_conflict_subtype(
     h7 = _house_7_activated(clean)
 
     # ── 1. separacao_termino ───────────────────────────────────────────────
-    # Requires slow planet + Casa 7 under pressure + 3+ independent techniques
-    # + not only Mercury/Mars fast signals
+    # Requires slow planet hard pressure on partnership axis + 3+ techniques.
+    # Fast-only Casa 7 (e.g. Sun square Jupiter in H7) is not sufficient.
     if (
-        (has_saturn or has_uranus or has_pluto)
-        and h7
+        _slow_pressure_on_partnership(clean)
         and num_techniques >= 3
         and not _only_mercury_mars_fast(clean)
     ):
@@ -369,3 +418,164 @@ def classify_relationship_conflict_subtype(
 
     # ── 6. tensao_leve (fallback) ─────────────────────────────────────────
     return "tensao_leve"
+
+
+# ---------------------------------------------------------------------------
+# Health / career / family subtype classifiers (rulebook extension)
+# ---------------------------------------------------------------------------
+
+def _targets_angle_or_ruler(
+    signals: list[dict[str, Any]],
+    *,
+    planets: frozenset[str],
+    angles: frozenset[str] | None = None,
+    houses: frozenset[int] | None = None,
+) -> bool:
+    angle_set = angles or frozenset()
+    house_set = houses or frozenset()
+    for s in filter_self_aspects(signals):
+        ev = s.get("evidence") or {}
+        if _norm(str(ev.get("aspect") or "")) not in TENSE_ASPECTS:
+            continue
+        pa = _norm(str(ev.get("planet_a") or ""))
+        pb = _norm(str(ev.get("planet_b") or ""))
+        if pa not in planets and pb not in planets:
+            continue
+        if pb in angle_set or pa in ANGLE_POINTS:
+            return True
+        th = ev.get("transit_house")
+        nh = ev.get("natal_house")
+        if isinstance(th, int) and th in house_set:
+            return True
+        if isinstance(nh, int) and nh in house_set:
+            return True
+    return False
+
+
+def classify_health_subtype(signals: list[dict[str, Any]]) -> str | None:
+    """
+    Health subtypes: risco_fisico_agudo, doenca_cronica, esgotamento_confusao.
+    Falls back to None so event_subtypes rule matching can decide.
+    """
+    clean = filter_self_aspects(signals)
+
+    # Netuno tenso a ASC/Sol/casa 6
+    if _has_planet(clean, "neptune") and (
+        _has_hard_aspect_pair(clean, "neptune", "sun")
+        or _has_hard_aspect_pair(clean, "neptune", "moon")
+        or _has_planet_in_house(clean, "neptune", 6)
+        or _targets_angle_or_ruler(
+            clean,
+            planets=frozenset({"neptune"}),
+            angles=frozenset({"asc", "ascendant"}),
+            houses=frozenset({6}),
+        )
+    ):
+        return "esgotamento_confusao"
+
+    # Marte/Urano tenso ASC/casas 6/8 — risco agudo
+    if (
+        _targets_angle_or_ruler(
+            clean,
+            planets=frozenset({"mars", "uranus"}),
+            angles=frozenset({"asc", "ascendant"}),
+            houses=frozenset({6, 8}),
+        )
+        or (_has_planet(clean, "mars") and _has_planet_in_house(clean, "mars", 6))
+    ):
+        return "risco_fisico_agudo"
+
+    # Saturno tenso casa 6/12 — crônico
+    if _has_planet(clean, "saturn") and (
+        _has_planet_in_house(clean, "saturn", 6)
+        or _has_planet_in_house(clean, "saturn", 12)
+        or _has_hard_aspect_pair(clean, "saturn", "sun")
+    ):
+        return "doenca_cronica"
+
+    return None
+
+
+def classify_career_finance_subtype(signals: list[dict[str, Any]]) -> str | None:
+    """
+    Career/finance: auditoria_carreira_ou_demissao, mudanca_abrupta_carreira,
+    aperto_financeiro, ganho_crescimento.
+    """
+    clean = filter_self_aspects(signals)
+
+    # Urano a MC/ASC — mudança abrupta
+    if _has_planet(clean, "uranus") and _targets_angle_or_ruler(
+        clean,
+        planets=frozenset({"uranus"}),
+        angles=frozenset({"mc", "midheaven", "asc", "ascendant"}),
+    ):
+        return "mudanca_abrupta_carreira"
+
+    # Saturno/Plutão tenso MC/casa 10
+    if (
+        (_has_planet(clean, "saturn") or _has_planet(clean, "pluto"))
+        and (
+            _has_planet_in_house(clean, "saturn", 10)
+            or _has_planet_in_house(clean, "pluto", 10)
+            or _targets_angle_or_ruler(
+                clean,
+                planets=frozenset({"saturn", "pluto"}),
+                angles=frozenset({"mc", "midheaven"}),
+                houses=frozenset({10}),
+            )
+        )
+    ):
+        return "auditoria_carreira_ou_demissao"
+
+    # Saturno tenso casa 2 — aperto
+    if _has_planet(clean, "saturn") and _has_planet_in_house(clean, "saturn", 2):
+        return "aperto_financeiro"
+
+    # Júpiter casa 2/10 sem aflição forte
+    if _has_planet(clean, "jupiter") and (
+        _has_planet_in_house(clean, "jupiter", 2) or _has_planet_in_house(clean, "jupiter", 10)
+    ):
+        jupiter_afflicted = any(
+            _norm(str((s.get("evidence") or {}).get("planet_a") or "")) == "jupiter"
+            and _norm(str((s.get("evidence") or {}).get("aspect") or "")) in TENSE_ASPECTS
+            for s in clean
+        )
+        if not jupiter_afflicted:
+            return "ganho_crescimento"
+
+    return None
+
+
+def classify_family_subtype(signals: list[dict[str, Any]]) -> str | None:
+    """
+    Family/home: mudanca_residencia_radical vs reestruturacao_familiar_ou_luto.
+
+  Saturno na casa 4 alone tends toward prolonged care (not returned here).
+    """
+    clean = filter_self_aspects(signals)
+
+    # Plutão IC/Lua duro — luto/reestruturação
+    if _has_planet(clean, "pluto") and (
+        _has_hard_aspect_pair(clean, "pluto", "moon")
+        or _targets_angle_or_ruler(
+            clean,
+            planets=frozenset({"pluto"}),
+            angles=frozenset({"ic", "imum_coeli"}),
+            houses=frozenset({4}),
+        )
+    ):
+        return "reestruturacao_familiar_ou_luto"
+
+    # Urano IC/Lua — mudança residência
+    if _has_planet(clean, "uranus") and (
+        _has_hard_aspect_pair(clean, "uranus", "moon")
+        or _targets_angle_or_ruler(
+            clean,
+            planets=frozenset({"uranus"}),
+            angles=frozenset({"ic", "imum_coeli"}),
+            houses=frozenset({4}),
+        )
+    ):
+        return "mudanca_residencia_radical"
+
+    return None

@@ -58,6 +58,69 @@ def format_month_range_pt(start: str | date | None, end: str | date | None) -> s
     )
 
 
+def _long_window_broad_label(start: date, end: date) -> str:
+    return (
+        f"tema sensível de {PORTUGUESE_MONTHS[start.month]} de {start.year} "
+        f"a {PORTUGUESE_MONTHS[end.month]} de {end.year}"
+    )
+
+
+def _should_suppress_peak_for_long_window(
+    start: date | None,
+    end: date | None,
+    peak: date | None,
+    reference_date: date | None,
+) -> bool:
+    if not (peak and reference_date and start and end):
+        return False
+    duration_days = (end - start).days
+    if duration_days <= 180:
+        return False
+    return abs((peak - reference_date).days) <= 7
+
+
+def _format_range_clause(
+    start: date | None,
+    end: date | None,
+    *,
+    fallback: date | None = None,
+) -> str:
+    anchor = fallback or start or end
+    if start and end:
+        if start == end:
+            return f"em {format_date_pt(start)}"
+        if start.year == end.year and start.month == end.month:
+            return (
+                f"de {start.day} a {end.day} de "
+                f"{PORTUGUESE_MONTHS[start.month]} de {start.year}"
+            )
+        return f"de {format_date_pt(start)} a {format_date_pt(end)}"
+    if anchor:
+        return f"em {format_date_pt(anchor)}"
+    return ""
+
+
+def _peak_relative_clause(
+    peak: date,
+    reference_date: date,
+    *,
+    range_clause: str,
+) -> str:
+    days_to_peak = (peak - reference_date).days
+    peak_date = format_date_pt(peak)
+    prefix = f"{range_clause} — " if range_clause else ""
+
+    if days_to_peak == 0:
+        return f"{prefix}intensidade máxima hoje ({peak_date})"
+    if 1 <= days_to_peak <= 7:
+        return f"{prefix}pico em {peak_date} (nesta semana)"
+    if 8 <= days_to_peak <= 45:
+        return f"{prefix}pico em {peak_date}"
+    if days_to_peak < 0:
+        return f"{prefix}pico em {peak_date}"
+    return f"{prefix}pico em {peak_date}"
+
+
 def format_time_window_label(
     window: dict[str, object] | None,
     *,
@@ -74,43 +137,25 @@ def format_time_window_label(
         label = window.get("label")
         return str(label) if label else "período ainda em formação"
 
+    if start and end and (end - start).days > 180:
+        return _long_window_broad_label(start, end)
+
+    if _should_suppress_peak_for_long_window(start, end, peak, reference_date):
+        peak = None
+
     if peak and reference_date is not None:
-        days_to_peak = (peak - reference_date).days
-        if days_to_peak == 0:
-            window_clause = (
-                f"entre {format_date_pt(start)} e {format_date_pt(end)}, " if (start and end) else ""
-            )
-            return f"{window_clause}pico hoje ({format_date_pt(peak)})"
-        if 1 <= days_to_peak <= 7:
-            window_clause = (
-                f"entre {format_date_pt(start or peak)} e {format_date_pt(end or peak)}, "
-                if (start and end)
-                else ""
-            )
-            return f"{window_clause}pico em {format_date_pt(peak)} (nesta semana)"
-        if 8 <= days_to_peak <= 14:
-            return f"entre {format_date_pt(start or peak)} e {format_date_pt(end or peak)}, pico em {format_date_pt(peak)} (nos próximos {days_to_peak} dias)"
-        if 15 <= days_to_peak <= 45:
-            return f"entre {format_date_pt(start or peak)} e {format_date_pt(end or peak)}, pico em {format_date_pt(peak)} (aproximadamente em {days_to_peak} dias)"
+        range_clause = _format_range_clause(start, end, fallback=peak)
+        relative = _peak_relative_clause(peak, reference_date, range_clause=range_clause)
+        if relative:
+            return relative
 
     if start and end:
         if start == end:
+            if peak and peak != start:
+                return f"em {format_date_pt(start)}, pico em {format_date_pt(peak)}"
             return f"em {format_date_pt(start)}"
-        if start.year == end.year and start.month == end.month:
-            base = f"entre {start.day} e {end.day} de {PORTUGUESE_MONTHS[start.month]} de {start.year}"
-            if peak:
-                return f"{base}, pico em {format_date_pt(peak)}"
-            return base
-        duration_days = (end - start).days
-        if duration_days > 180:
-            # Long cycle (>6 months): avoid specific event claims, use broad framing.
-            base = (
-                f"tema sensível no período de "
-                f"{PORTUGUESE_MONTHS[start.month]} de {start.year} "
-                f"a {PORTUGUESE_MONTHS[end.month]} de {end.year}"
-            )
-            return base
-        base = f"entre {format_date_pt(start)} e {format_date_pt(end)}"
+
+        base = _format_range_clause(start, end)
         if peak:
             return f"{base}, pico em {format_date_pt(peak)}"
         return base
@@ -128,12 +173,12 @@ def format_assertive_when_label(
     reference_date: date | None = None,
 ) -> str:
     """
-    Always produces a readable, assertive label with month spelled out in full.
+    Compact when-label for human summaries (month names spelled out).
 
     Examples:
       - "janeiro de 2026, pico em 15 de janeiro"
       - "março a abril de 2026"
-      - "pico em 5 de setembro de 2026"
+      - "5 de setembro de 2026"
     """
     if not window:
         return "período ainda em formação"
@@ -146,16 +191,19 @@ def format_assertive_when_label(
         label = window.get("label")
         return str(label) if label else "período ainda em formação"
 
-    peak_clause = f", pico em {peak.day} de {PORTUGUESE_MONTHS[peak.month]}" if peak else ""
+    if _should_suppress_peak_for_long_window(start, end, peak, reference_date):
+        peak = None
+
+    peak_clause = ""
+    if peak:
+        if start and end and start.year == end.year and start.month == end.month:
+            peak_clause = f", pico em {peak.day} de {PORTUGUESE_MONTHS[peak.month]}"
+        else:
+            peak_clause = f", pico em {format_date_pt(peak)}"
 
     if start and end:
-        # Long cycle (>180 days): use broad framing, skip specific event claims
         if (end - start).days > 180:
-            return (
-                f"tema sensível no período de "
-                f"{PORTUGUESE_MONTHS[start.month]} de {start.year} "
-                f"a {PORTUGUESE_MONTHS[end.month]} de {end.year}"
-            )
+            return _long_window_broad_label(start, end)
         if start.year == end.year and start.month == end.month:
             return f"{PORTUGUESE_MONTHS[start.month]} de {start.year}{peak_clause}"
         if start.year == end.year:
@@ -169,7 +217,7 @@ def format_assertive_when_label(
         )
 
     if peak:
-        return f"{peak.day} de {PORTUGUESE_MONTHS[peak.month]} de {peak.year}"
+        return format_date_pt(peak)
     if start:
         return f"a partir de {PORTUGUESE_MONTHS[start.month]} de {start.year}"
     return "período ainda em formação"

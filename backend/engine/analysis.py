@@ -11,6 +11,10 @@ from astro.ephemeris import calculate_ephemeris
 from astro.signs import longitude_to_sign
 from astro.time import local_to_utc, utc_isoformat_z
 
+from engine.essential_dignity import enrich_transit_signals_with_dignity
+from engine.signal_enrichment import enrich_transit_signal_evidence
+from engine.transit_triggers import refine_slow_transit_windows
+
 THEME_MAP = {
     1: "identidade",
     2: "financeiro",
@@ -602,6 +606,20 @@ def build_multilayer_analysis(
                     }
                 )
 
+    transit_signals = [
+        enrich_transit_signal_evidence(s) for s in transit_signals
+    ]
+    transit_signals = enrich_transit_signals_with_dignity(
+        transit_signals,
+        natal_ephemeris,
+    )
+    transit_signals = refine_slow_transit_windows(
+        transit_signals,
+        natal_ephemeris=natal_ephemeris,
+        payload=payload,
+        reference_date=reference_date,
+    )
+
     birth_date = date.fromisoformat(payload["date"])
     profected_house = (_age_years(birth_date, reference_date) % 12) + 1
     profected_longitude = houses[profected_house - 1]
@@ -663,7 +681,7 @@ def build_multilayer_analysis(
         for planet_name, planet_data in solar_return_chart.planets.items():
             for angle_name, angle_longitude in solar_return_chart.angles.items():
                 orb = angular_distance(float(planet_data["longitude"]), angle_longitude)
-                if orb <= 8:
+                if orb <= 5:
                     angle_hits.append({"planet": planet_name, "angle": angle_name, "orb": round(orb, 6)})
 
         for rank, (house_number, count) in enumerate(dominant_house_counts, start=1):

@@ -10,6 +10,8 @@ _ACCENT_REPLACEMENTS: tuple[tuple[str, str], ...] = (
     ("Parcialmente evitavel", "Parcialmente evitável"),
     ("Da para evitar", "Dá para evitar"),
     ("da para evitar", "dá para evitar"),
+    ("evitavel", "evitável"),
+    ("Evitavel", "Evitável"),
     ("nao ", "não "),
     ("Nao ", "Não "),
     ("voce ", "você "),
@@ -38,6 +40,7 @@ _ACCENT_REPLACEMENTS: tuple[tuple[str, str], ...] = (
     (" promocao ", " promoção "),
     (" posicao ", " posição "),
     (" condicao ", " condição "),
+    (" parceria ", " parceria "),
     (" emocional ", " emocional "),
     (" psicologico ", " psicológico "),
     (" astrologico ", " astrológico "),
@@ -102,6 +105,33 @@ _ACCENT_REPLACEMENTS: tuple[tuple[str, str], ...] = (
     (" meses ", " meses "),
     (" numerologica", " numerológica"),
     (" astrologica", " astrológica"),
+    # Planetas em inglês que ainda escapam do motor técnico
+    ("North Node", "Nodo Norte"),
+    ("South Node", "Nodo Sul"),
+    ("True Node", "Nodo Norte"),
+    ("Neptune", "Netuno"),
+    ("Pluto", "Plutão"),
+    ("Uranus", "Urano"),
+    ("Saturn", "Saturno"),
+    ("Jupiter", "Júpiter"),
+    ("Mercury", "Mercúrio"),
+    ("Venus", "Vênus"),
+    ("Mars", "Marte"),
+    ("Moon", "Lua"),
+    ("Sun", "Sol"),
+    ("Midheaven", "Meio do Céu"),
+    ("Descendant", "Descendente"),
+    ("Ascendant", "Ascendente"),
+    ("IC", "Fundo do Céu"),
+    ("Imum Coeli", "Fundo do Céu"),
+)
+
+# Substituições com limite de palavra (evita cortar "nesta", "testa", etc.)
+_WORD_REPLACEMENTS: tuple[tuple[str, str], ...] = (
+    (r"\besta\b", "está"),
+    (r"\bEsta\b", "Está"),
+    (r"\bestao\b", "estão"),
+    (r"\bEstao\b", "Estão"),
 )
 
 
@@ -111,4 +141,6 @@ def polish_portuguese(text: str) -> str:
     result = text
     for source, target in _ACCENT_REPLACEMENTS:
         result = result.replace(source, target)
+    for pattern, replacement in _WORD_REPLACEMENTS:
+        result = re.sub(pattern, replacement, result)
     return re.sub(r" +", " ", result).strip()

@@ -3,6 +3,7 @@ from datetime import date
 from engine.predictive_insights import (
     CATEGORY_DEFINITIONS,
     _build_astrological_reason,
+    _merged_window,
     build_predictive_insights,
 )
 
@@ -16,6 +17,13 @@ def _analysis_fixture() -> dict:
                 "label": "Saturno pressiona o MC",
                 "weight": 0.86,
                 "polarity": "challenging",
+                "evidence": {
+                    "aspect": "square",
+                    "planet_a": "saturn",
+                    "planet_b": "midheaven",
+                    "transit_house": 10,
+                    "natal_house": 10,
+                },
                 "time_window": {
                     "start": "2026-04-10",
                     "end": "2026-05-02",
@@ -28,6 +36,12 @@ def _analysis_fixture() -> dict:
                 "label": "Lua progredida muda o foco profissional",
                 "weight": 0.74,
                 "polarity": "mixed",
+                "evidence": {
+                    "aspect": "opposition",
+                    "planet_a": "moon",
+                    "planet_b": "sun",
+                    "natal_house": 10,
+                },
                 "time_window": {
                     "start": "2026-04-01",
                     "end": "2026-07-30",
@@ -124,6 +138,16 @@ def _analysis_fixture() -> dict:
     }
 
 
+def test_merged_window_long_cycle_drops_reference_peak() -> None:
+    items = [
+        {"time_window": {"start": "2026-05-27", "end": "2027-05-27", "peak": "2026-05-27"}},
+        {"time_window": {"start": "2026-06-01", "end": "2028-05-17", "peak": "2026-05-27"}},
+    ]
+    merged = _merged_window(items, date(2026, 5, 27))
+    assert merged is not None
+    assert merged.get("peak") is None
+
+
 def test_predictive_insights_require_three_independent_signals() -> None:
     result = build_predictive_insights(_analysis_fixture(), reference_date=date(2026, 4, 4))
 
@@ -132,8 +156,9 @@ def test_predictive_insights_require_three_independent_signals() -> None:
 
     assert detected["career"]["probability_level"] == "Alta"
     assert detected["career"]["certainty_level"] == "will"
-    assert detected["career"]["certainty_label"] == "Vai acontecer"
-    assert detected["career"]["independent_signals"] == 4
+    assert detected["career"]["certainty_label"] == "Alta probabilidade"
+    assert detected["career"]["technique_count"] == 4
+    assert detected["career"]["independent_signals"] >= 3
     assert detected["career"]["what_is_happening"].startswith("Isso vai acontecer")
     assert detected["career"]["time_window"]["label"]
     assert "Motivo (" in detected["career"]["explanation"]
@@ -246,6 +271,12 @@ def _make_analysis_for_category(cat_key: str) -> dict:
     domain = next(iter(cat["domains"]))
     polarity = next(iter(cat["allowed_polarities"]))
     rule_code = next(iter(cat["rule_codes"]))
+    evidence_sets = [
+        {"aspect": "square", "planet_a": "saturn", "planet_b": "midheaven", "natal_house": 10},
+        {"aspect": "opposition", "planet_a": "moon", "planet_b": "sun", "natal_house": 6},
+        {"aspect": "square", "planet_a": "mars", "planet_b": "pluto", "natal_house": 8},
+    ]
+    techniques = ["transits", "progressions", "solar_return"]
     signals = [
         {
             "technique": t,
@@ -258,9 +289,9 @@ def _make_analysis_for_category(cat_key: str) -> dict:
                 "end": "2026-07-31",
                 "peak": "2026-06-20",
             },
-            "evidence": {"aspect": "square", "planet_a": "mars", "planet_b": "saturn"},
+            "evidence": ev,
         }
-        for t in ["transits", "progressions", "solar_return"]
+        for t, ev in zip(techniques, evidence_sets)
     ]
     rule_hits = [{"code": rule_code, "weight": 4.0, "label": f"Regra {rule_code}"}]
     return {"signals": signals, "rule_hits": rule_hits, "life_events": [], "user_context": {}}

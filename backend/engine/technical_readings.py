@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from engine.astro_confirmation import is_self_aspect as _is_self_aspect, score_signal
+from engine.astro_confirmation import (
+    filter_generational_pairs,
+    is_self_aspect as _is_self_aspect,
+    score_signal,
+)
 from engine.date_formatting import format_date_pt, format_time_window_label
 from engine.portuguese_text import polish_portuguese
 
@@ -118,7 +122,11 @@ def build_signal_reading(signal: dict[str, Any], *, reference_date, category_key
     time_window = dict(signal.get("time_window") or evidence.get("time_window") or {})
     when = format_time_window_label(time_window, reference_date=reference_date)
     peak = time_window.get("peak")
-    peak_line = f" Exato mais provável: {format_date_pt(peak)}." if peak else ""
+    when_lower = when.lower()
+    if peak and "pico" not in when_lower and "intensidade máxima" not in when_lower:
+        peak_line = f" Exato mais provável: {format_date_pt(peak)}."
+    else:
+        peak_line = ""
 
     if str(signal.get("technique")) == "numerology":
         meaning = "O ciclo numerológico reforça este tema no período indicado."
@@ -202,7 +210,7 @@ def build_technical_items(
     items: list[dict[str, str]] = []
     # Filter self-aspects before sorting — same-body progressions (Pluto/Pluto etc.)
     # carry no individual meaning and should not appear in the technical display.
-    meaningful_signals = [s for s in signals if not _is_self_aspect(s)]
+    meaningful_signals = filter_generational_pairs(signals)
     sorted_signals = sorted(
         meaningful_signals,
         key=lambda item: (-score_signal(item), str(item.get("label", ""))),

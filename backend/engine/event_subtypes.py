@@ -18,9 +18,28 @@ from datetime import date
 from typing import Any
 
 from engine.astro_confirmation import (
+    classify_career_finance_subtype,
+    classify_family_subtype,
+    classify_health_subtype,
     classify_relationship_conflict_subtype,
+    filter_generational_pairs,
     filter_self_aspects,
+    is_generational_outer_pair as _is_generational_outer_pair,
     is_self_aspect as _ac_is_self_aspect,
+    score_signal,
+)
+from engine.astro_provenance import (
+    build_astro_provenance,
+    build_human_por_que_from_provenance,
+    format_provenance_technical_block,
+)
+from engine.cluster_convergence import compute_cluster_metrics
+from engine.certainty import resolve_certainty
+from engine.signal_enrichment import (
+    format_brady_por_que_line,
+    has_hard_slow_transit,
+    soft_aspect_opportunity_note,
+    subtype_requires_hard_aspect,
 )
 from engine.date_formatting import format_assertive_when_label, format_date_pt, format_time_window_label, parse_iso_date
 from engine.portuguese_text import polish_portuguese
@@ -66,6 +85,44 @@ def _is_self_aspect(signal: dict[str, Any]) -> bool:
     Delegates to astro_confirmation.is_self_aspect for consistency.
     """
     return _ac_is_self_aspect(signal)
+
+
+def _meaningful_signals_for_display(
+    signals: list[dict[str, Any]],
+    *,
+    subtype_key: str | None = None,
+) -> list[dict[str, Any]]:
+    """Signals for por_que / bullets: no self-aspects, no outer–outer generational pairs."""
+    cleaned = filter_generational_pairs(signals)
+    if subtype_key in {
+        "separacao_termino", "separacao_abrupta", "briga_forte", "briga_grave",
+        "afastamento_emocional", "afastamento", "ciume_posse",
+    }:
+        from engine.signal_enrichment import HARD_ASPECTS
+
+        slow_hard = [
+            s for s in cleaned
+            if str(s.get("technique") or "") == "transits"
+            and str((s.get("evidence") or {}).get("aspect") or "") in HARD_ASPECTS
+            and (
+                str((s.get("evidence") or {}).get("planet_a") or "").replace("_", " ").lower()
+                in {"saturn", "uranus", "neptune", "pluto"}
+                or str((s.get("evidence") or {}).get("planet_b") or "").replace("_", " ").lower()
+                in {"saturn", "uranus", "neptune", "pluto"}
+            )
+        ]
+        if slow_hard:
+            cleaned = [
+                s for s in cleaned
+                if not (
+                    str(s.get("technique") or "") == "transits"
+                    and str((s.get("evidence") or {}).get("planet_a") or "").replace("_", " ").lower()
+                    in _FAST_MOVERS
+                    and str((s.get("evidence") or {}).get("planet_b") or "").replace("_", " ").lower()
+                    in {"jupiter", "sun", "moon", "mercury", "venus"}
+                )
+            ] or cleaned
+    return sorted(cleaned, key=lambda s: (-score_signal(s), str(s.get("label") or "")))
 
 
 def _has_fast_mover_transit(signals: list[dict[str, Any]]) -> bool:
@@ -156,6 +213,8 @@ def _enrich_por_que(
     signals: list[dict[str, Any]],
     rule_hits: list[dict[str, Any]],
     matching_rule_codes: set[str],
+    *,
+    subtype_key: str | None = None,
 ) -> str:
     """Build a rich por_que string: 'Técnica: aspecto planeta_a/planeta_b, Casa N (tema)'.
 
@@ -164,8 +223,7 @@ def _enrich_por_que(
     """
     parts: list[str] = []
 
-    # Filter self-aspects before selecting top signals
-    meaningful_signals = [s for s in signals if not _is_self_aspect(s)]
+    meaningful_signals = _meaningful_signals_for_display(signals, subtype_key=subtype_key)
     for s in meaningful_signals[:3]:
         technique = _TECHNIQUE_LABELS_PT.get(str(s.get("technique") or ""), "Técnica")
         evidence = dict(s.get("evidence") or {})
@@ -196,6 +254,14 @@ def _enrich_por_que(
         if str(h.get("code", "")) in matching_rule_codes and h.get("label"):
             parts.append(f"Regra: {h['label']}")
 
+    brady_lines: list[str] = []
+    for s in meaningful_signals[:2]:
+        brady = format_brady_por_que_line(dict((s.get("evidence") or {})))
+        if brady and brady not in parts:
+            brady_lines.append(brady)
+    if brady_lines:
+        parts = brady_lines + parts
+
     if not parts:
         return "Convergência técnica detectada no mapa."
     return "; ".join(parts)
@@ -205,6 +271,8 @@ def _human_por_que_deduped(
     signals: list[dict[str, Any]],
     rule_hits: list[dict[str, Any]],
     matching_rule_codes: set[str],
+    *,
+    subtype_key: str | None = None,
 ) -> str:
     """
     Compact, deduplicated por_que for surface display:
@@ -212,7 +280,7 @@ def _human_por_que_deduped(
     - Shows 'X técnicas confirmam' when the same pattern repeats
     - Max 2 patterns + 1 rule
     """
-    meaningful = [s for s in signals if not _is_self_aspect(s)]
+    meaningful = _meaningful_signals_for_display(signals, subtype_key=subtype_key)
 
     pattern_counts: dict[str, int] = {}
     pattern_house: dict[str, str] = {}
@@ -754,6 +822,87 @@ SUBTYPE_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
 
+    "risco_fisico_agudo": {
+        "label": "Risco físico agudo",
+        "category": "health",
+        "rule_codes": {"accident_risk", "extreme_conflict"},
+        "priority_rule_codes": {"accident_risk"},
+        "min_techniques": 2,
+        "fatalistic_threshold": 3,
+        "avoidability": (
+            "Parcialmente evitável: cautela no trânsito e redução de impulsividade "
+            "diminuem exposição em dias-semanas de pico."
+        ),
+        "template": {
+            "what": (
+                "O mapa indica risco físico agudo (Marte/Urano tenso a corpo, ASC ou casas 6/8): "
+                "acidente, lesão ou crise somática em janela curta — não processo crônico lento."
+            ),
+            "when_note": "Pico de risco em {when_peak} (dias a semanas).",
+            "scenarios": [
+                "Acidente por pressa, irritação ou distração no trânsito.",
+                "Lesão súbita em atividade física ou trabalho sob pressão.",
+                "Crise aguda que exige atendimento imediato.",
+            ],
+            "risk": "Ignorar o pico aumenta chance de afastamento ou complicação.",
+            "action": "Evite pressa e impulsividade no pico; antecipe consulta se houver sintoma.",
+        },
+    },
+
+    "doenca_cronica": {
+        "label": "Doença ou limitação crônica",
+        "category": "health",
+        "rule_codes": {"psychological_transformation", "emotional_low"},
+        "priority_rule_codes": set(),
+        "min_techniques": 2,
+        "fatalistic_threshold": 4,
+        "avoidability": (
+            "Ciclo prolongado: exige acompanhamento médico e rotina sustentável; "
+            "não some com repouso de um fim de semana."
+        ),
+        "template": {
+            "what": (
+                "Saturno tenso nas casas 6/12 (ou ao regente da saúde) aponta processo "
+                "crônico, limitação de energia ou doença de arrasto — não crise de um dia."
+            ),
+            "when_note": "Tema ativo em {when_range}; intensidade em {when_peak}.",
+            "scenarios": [
+                "Sintomas recorrentes que exigem investigação e rotina de tratamento.",
+                "Esgotamento estrutural por excesso de responsabilidade.",
+                "Reorganização forçada de hábitos por limitação física.",
+            ],
+            "risk": "Sem tratamento, o quadro cristaliza em padrão crônico.",
+            "action": "Monte rotina médica e de sono; não normalize o cansaço como 'só estresse'.",
+        },
+    },
+
+    "esgotamento_confusao": {
+        "label": "Esgotamento e confusão (Netuno)",
+        "category": "health",
+        "rule_codes": {"emotional_low", "psychological_transformation"},
+        "priority_rule_codes": set(),
+        "min_techniques": 2,
+        "fatalistic_threshold": 4,
+        "avoidability": (
+            "Reduzível com limites, sono e clareza de diagnóstico; "
+            "evitar álcool, fuga e autodiagnóstico."
+        ),
+        "template": {
+            "what": (
+                "Netuno tenso ao Sol, ASC ou casa 6: névoa mental, esgotamento difuso, "
+                "hipersensibilidade ou confusão entre cansaço físico e sobrecarga emocional."
+            ),
+            "when_note": "Névoa mais densa em {when_peak}.",
+            "scenarios": [
+                "Sono não reparador e dificuldade de concentração por semanas.",
+                "Sensação de 'estar no automático' ou desorientado.",
+                "Risco de mascarar problema orgânico com exaustão emocional.",
+            ],
+            "risk": "Sem limites, pode virar burnout ou uso de escape (substâncias, fuga).",
+            "action": "Priorize sono, reduza estímulos e busque avaliação médica se persistir.",
+        },
+    },
+
     # ─────────────────────────────────────────────────────────────────────────
     # CARREIRA — emprego_novo / perda_emprego / pressao_carreira
     # ─────────────────────────────────────────────────────────────────────────
@@ -863,6 +1012,61 @@ SUBTYPE_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
 
+    "auditoria_carreira_ou_demissao": {
+        "label": "Auditoria, corte ou demissão",
+        "category": "career",
+        "rule_codes": {"career_block", "career_reset", "authority_conflict", "career_pressure"},
+        "priority_rule_codes": {"career_reset"},
+        "polarity_required": "challenging",
+        "min_techniques": 2,
+        "fatalistic_threshold": 3,
+        "avoidability": (
+            "Prepare documentação e plano B; Saturno/Plutão no MC/10 exigem "
+            "responsabilização estrutural, não só 'passar raiva'."
+        ),
+        "template": {
+            "what": (
+                "Saturno ou Plutão tenso no MC ou casa 10: auditoria, corte, demissão "
+                "ou reestruturação que redefine status profissional."
+            ),
+            "when_note": "Pressão institucional mais forte em {when_peak}.",
+            "scenarios": [
+                "Revisão de metas com chefe ou RH que pode terminar em saída.",
+                "Corte de equipe ou função eliminada na reorganização.",
+                "Demissão após período de cobrança e prova de resultado.",
+            ],
+            "risk": "Sem reserva e rede ativa, vira crise financeira em cadeia.",
+            "action": "Documente entregas, atualize currículo e ative contatos antes do pico.",
+        },
+    },
+
+    "mudanca_abrupta_carreira": {
+        "label": "Mudança abrupta de carreira",
+        "category": "career",
+        "rule_codes": {"career_change", "career_reset", "sudden_break"},
+        "priority_rule_codes": {"career_change"},
+        "min_techniques": 2,
+        "fatalistic_threshold": 3,
+        "avoidability": (
+            "Urano no MC/ASC pede ruptura — dá para canalizar como salto planejado, "
+            "não só demissão-surpresa."
+        ),
+        "template": {
+            "what": (
+                "Urano ativo no MC ou ASC: virada rápida de carreira, função ou imagem "
+                "pública — muitas vezes sem aviso longo."
+            ),
+            "when_note": "Ruptura ou oportunidade súbita em {when_peak}.",
+            "scenarios": [
+                "Pedido de demissão impulsivo ou saída por insatisfação repentina.",
+                "Proposta inesperada que muda cidade, setor ou modelo de trabalho.",
+                "Reorganização que te coloca em papel totalmente novo.",
+            ],
+            "risk": "Decidir no impulso sem plano financeiro aumenta o custo da virada.",
+            "action": "Separe o que é libertação do que é fuga; valide com prazo de 48h antes de cortar.",
+        },
+    },
+
     # ─────────────────────────────────────────────────────────────────────────
     # FINANÇAS — ganho_financeiro / perda_financeira
     # ─────────────────────────────────────────────────────────────────────────
@@ -893,6 +1097,59 @@ SUBTYPE_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "Planeje onde vai o dinheiro antes de recebê-lo. "
                 "Reserve parte, quite prioridade, depois gaste."
             ),
+        },
+    },
+
+    "ganho_crescimento": {
+        "label": "Ganho e crescimento (Júpiter)",
+        "category": "finance",
+        "rule_codes": {"financial_gain", "money_flow", "career_growth"},
+        "priority_rule_codes": {"financial_gain", "career_growth"},
+        "polarity_required": "supportive",
+        "min_techniques": 2,
+        "fatalistic_threshold": 3,
+        "avoidability": "Exige dignidade e ausência de aflição forte a Júpiter; senão vira oportunidade fraca.",
+        "template": {
+            "what": (
+                "Júpiter nas casas 2 ou 10 sem aflição pesada: expansão de renda, "
+                "promoção ou entrada que aumenta margem real."
+            ),
+            "when_note": "Janela de crescimento em {when_peak}.",
+            "scenarios": [
+                "Aumento, bônus ou contrato melhor que amplia capacidade financeira.",
+                "Negócio ou investimento com retorno visível no curto prazo.",
+                "Reconhecimento profissional que abre porta de ganho.",
+            ],
+            "risk": "Ganho sem planejamento evapora; trígono fraco a receptor debilitado ilude.",
+            "action": "Confirme se Júpiter não está apenas 'conforto ilusório'; planeje destino do recurso.",
+        },
+    },
+
+    "aperto_financeiro": {
+        "label": "Aperto financeiro (Saturno)",
+        "category": "finance",
+        "rule_codes": {"financial_restriction", "financial_loss", "career_block"},
+        "priority_rule_codes": {"financial_restriction"},
+        "polarity_required": "challenging",
+        "min_techniques": 2,
+        "fatalistic_threshold": 3,
+        "avoidability": (
+            "Contenção e renegociação antecipada reduzem dano; "
+            "Saturno na casa 2 cobra disciplina, não milagre."
+        ),
+        "template": {
+            "what": (
+                "Saturno tenso na casa 2 ou ao regente financeiro: aperto, corte de gastos, "
+                "dívida que vence ou queda de margem."
+            ),
+            "when_note": "Aperto mais intenso em {when_peak}.",
+            "scenarios": [
+                "Conta inesperada ou queda de renda que exige plano de corte.",
+                "Renegociação de dívida ou adiamento de projeto por falta de caixa.",
+                "Medo real de não fechar o mês — pede priorização brutal.",
+            ],
+            "risk": "Postergar o corte transforma aperto em inadimplência.",
+            "action": "Liste gastos fixos, renegocie o que der e congele supérfluo antes do pico.",
         },
     },
 
@@ -1033,8 +1290,62 @@ SUBTYPE_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
 
     # ─────────────────────────────────────────────────────────────────────────
-    # GRANDES TRANSIÇÕES — mudanca_local (e fallback genérico)
+    # GRANDES TRANSIÇÕES — família/lar e mudanca_local
     # ─────────────────────────────────────────────────────────────────────────
+    "mudanca_residencia_radical": {
+        "label": "Mudança radical de residência",
+        "category": "major_transitions",
+        "rule_codes": {"career_change", "financial_transformation", "career_reset"},
+        "priority_rule_codes": set(),
+        "min_techniques": 2,
+        "fatalistic_threshold": 3,
+        "avoidability": (
+            "Urano/eclipse no eixo lar (IC/Lua) empurra mudança — "
+            "planejar logística reduz caos."
+        ),
+        "template": {
+            "what": (
+                "Urano ou eixo IC/Lua ativado: mudança de casa, cidade ou país "
+                "de forma rápida ou inesperada — ruptura do lar atual."
+            ),
+            "when_note": "Virada residencial em {when_peak}.",
+            "scenarios": [
+                "Mudança forçada por trabalho, aluguel ou ruptura familiar.",
+                "Decisão súbita de trocar de cidade ou país.",
+                "Imprevisto estrutural (obra, vizinho, financeiro) que exige sair.",
+            ],
+            "risk": "Mudança sem reserva financeira vira dupla crise (lar + dinheiro).",
+            "action": "Feche custos e prazos por escrito; não assine pressionado no pico.",
+        },
+    },
+
+    "reestruturacao_familiar_ou_luto": {
+        "label": "Reestruturação familiar ou luto",
+        "category": "major_transitions",
+        "rule_codes": {"deep_emotional_break", "psychological_transformation", "emotional_cut"},
+        "priority_rule_codes": {"deep_emotional_break"},
+        "min_techniques": 2,
+        "fatalistic_threshold": 3,
+        "avoidability": (
+            "Plutão no IC/Lua é processo profundo — apoio emocional e jurídico "
+            "reduzem dano; distinto de Saturno 4 (cuidado prolongado)."
+        ),
+        "template": {
+            "what": (
+                "Plutão tenso no IC ou à Lua: reestruturação pesada da família, "
+                "luto, herança conflituosa ou fim de capítulo doméstico."
+            ),
+            "when_note": "Processo mais denso em {when_peak}.",
+            "scenarios": [
+                "Separação sob o mesmo teto ou partilha de bens que redefine a família.",
+                "Luto ou perda que reorganiza papéis em casa.",
+                "Segredo ou crise de poder que muda a dinâmica familiar.",
+            ],
+            "risk": "Sem suporte, vira isolamento, litígio ou ressentimento crônico.",
+            "action": "Busque mediação, terapia e assessoria jurídica cedo — não espere o pico.",
+        },
+    },
+
     "mudanca_local": {
         "label": "Mudança de casa ou cidade",
         "category": "major_transitions",
@@ -1083,16 +1394,23 @@ _SUBTYPE_PRIORITY_ORDER: list[str] = [
     "afastamento",
     "briga_grave",
     # health (mais específico primeiro)
+    "risco_fisico_agudo",
     "acidente_fisico",
-    "acidente_emocional",
     "crise_saude",
+    "esgotamento_confusao",
+    "doenca_cronica",
+    "acidente_emocional",
     "cronico",
     "doenca_leve",
     # career
+    "mudanca_abrupta_carreira",
+    "auditoria_carreira_ou_demissao",
     "perda_emprego",
     "emprego_novo",
     "pressao_carreira",
     # finance
+    "aperto_financeiro",
+    "ganho_crescimento",
     "perda_financeira",
     "ganho_financeiro",
     # relationships
@@ -1100,6 +1418,8 @@ _SUBTYPE_PRIORITY_ORDER: list[str] = [
     "compromisso",
     "crise_afetiva",
     # major_transitions
+    "mudanca_residencia_radical",
+    "reestruturacao_familiar_ou_luto",
     "mudanca_local",
 ]
 
@@ -1217,6 +1537,39 @@ def classify_event_subtype(
             fallback = "crise_afetiva" if "crise_afetiva" in available else "afastamento"
             best_key = fallback
 
+    _CAREER_RULEBOOK_SUBTYPES: frozenset[str] = frozenset({
+        "mudanca_abrupta_carreira",
+        "auditoria_carreira_ou_demissao",
+        "perda_emprego",
+        "pressao_carreira",
+        "emprego_novo",
+    })
+    _FINANCE_RULEBOOK_SUBTYPES: frozenset[str] = frozenset({
+        "aperto_financeiro",
+        "ganho_crescimento",
+        "ganho_financeiro",
+        "perda_financeira",
+    })
+
+    if category_key == "health" and category_signals:
+        health_subtype = classify_health_subtype(category_signals)
+        if health_subtype and health_subtype in available:
+            best_key = health_subtype
+
+    if category_signals:
+        career_finance_subtype = classify_career_finance_subtype(category_signals)
+        if category_key == "career" and career_finance_subtype in _CAREER_RULEBOOK_SUBTYPES:
+            if career_finance_subtype in available:
+                best_key = career_finance_subtype
+        if category_key == "finance" and career_finance_subtype in _FINANCE_RULEBOOK_SUBTYPES:
+            if career_finance_subtype in available:
+                best_key = career_finance_subtype
+
+    if category_key == "major_transitions" and category_signals:
+        family_subtype = classify_family_subtype(category_signals)
+        if family_subtype and family_subtype in available:
+            best_key = family_subtype
+
     # ── Confirmation-rulebook classifier override for rupture/relationships ──
     # For relationship conflict categories, delegate to the more specific
     # classify_relationship_conflict_subtype() from astro_confirmation.
@@ -1232,6 +1585,10 @@ def classify_event_subtype(
                 rule_hits=rule_hits,
                 num_techniques=num_techniques,
             )
+            if conflict_subtype == "separacao_termino" and not has_hard_slow_transit(
+                category_signals
+            ):
+                conflict_subtype = "afastamento_emocional"
             if category_key == "rupture":
                 _CONFLICT_SUBTYPE_MAP: dict[str, str] = {
                     "separacao_termino": "separacao_termino",
@@ -1344,6 +1701,21 @@ def build_subtype_text(
         and not is_long_window  # 2-year cycles don't justify assertive language
     )
 
+    if subtype_requires_hard_aspect(subtype_key) and not has_hard_slow_transit(signals):
+        is_fatalistic = False
+
+    _gain_subtypes = frozenset({"ganho_crescimento", "ganho_financeiro", "emprego_novo"})
+    if subtype_key in _gain_subtypes:
+        has_real_gain_support = any(
+            (s.get("evidence") or {}).get("natal_dignity_supports_gain")
+            for s in signals
+        )
+        only_illusory = any(
+            s.get("dignity_downgrade") == "conforto_ilusorio" for s in signals
+        ) and not has_real_gain_support
+        if only_illusory:
+            is_fatalistic = False
+
     # Build fields — long windows use softened language regardless of subtype
     if is_long_window and subtype_key in {"briga_grave", "separacao_abrupta"}:
         # Wide cycle: say the theme is sensitive, not that a specific fight will happen
@@ -1360,32 +1732,58 @@ def build_subtype_text(
             what = f"Isso vai acontecer: {what}"
 
     when_note = fill(template.get("when_note", f"O período mais sensível é {when_range}."))
+    soft_note = soft_aspect_opportunity_note(signals)
+    if soft_note and subtype_requires_hard_aspect(subtype_key):
+        when_note = f"{when_note} {soft_note}"
     scenarios = [fill(s) for s in template.get("scenarios", [])]
     risk = fill(template.get("risk", ""))
     action = fill(template.get("action", ""))
     avoidability = sd["avoidability"]
 
     # Build por_que with technique labels, aspect names, and house context
-    por_que = _enrich_por_que(signals, rule_hits, matching_rule_codes)
+    por_que = _enrich_por_que(
+        signals, rule_hits, matching_rule_codes, subtype_key=subtype_key
+    )
 
     source_technique = _primary_source_label(signals)
 
     primary_scenario = scenarios[0] if scenarios else what
 
     # Compact human summary for surface display (3–5 lines, no technical repetition)
-    human_por_que = _human_por_que_deduped(signals, rule_hits, matching_rule_codes)
+    category_key = str(sd.get("category") or "rupture")
+    cluster_metrics = compute_cluster_metrics(signals, rule_hits)
+    certainty_level = resolve_certainty(
+        independent_signals,
+        signals,
+        category_key=category_key,
+        theme_convergence=int(cluster_metrics.get("theme_convergence") or 0),
+        has_hard_slow=has_hard_slow_transit(signals),
+    )
+    provenance = build_astro_provenance(
+        signals=signals,
+        rule_hits=rule_hits,
+        time_window=time_window,
+        certainty_level=certainty_level,
+        category_key=category_key,
+        cluster_metrics=cluster_metrics,
+    )
+    human_por_que = build_human_por_que_from_provenance(provenance) or _human_por_que_deduped(
+        signals, rule_hits, matching_rule_codes, subtype_key=subtype_key
+    )
     subtype_human_summary = polish_portuguese(
-        f"O que: {primary_scenario}\n"
+        f"O quê: {primary_scenario}\n"
         f"Quando: {when_range}\n"
         f"Por quê: {human_por_que}\n"
         f"Evitar: {avoidability}"
     )
 
     # Full technical block for accordion
+    provenance_block = format_provenance_technical_block(provenance)
     formatted_block = polish_portuguese(
         f"Quando: {when_range}\n\n"
         f"O que acontece: {primary_scenario}\n\n"
         f"Por que (astrologia/numerologia): {por_que}\n\n"
+        f"{provenance_block}\n\n"
         f"Dá para evitar? {avoidability}\n\n"
         f"Risco: {risk}\n\n"
         f"Ação recomendada: {action}"
@@ -1405,6 +1803,9 @@ def build_subtype_text(
         "subtype_human_summary": subtype_human_summary,
         "subtype_formatted_block": formatted_block,
         "is_fatalistic": is_fatalistic,
+        "astro_provenance": provenance,
+        "certainty_level": certainty_level,
+        "cluster_metrics": cluster_metrics,
     }
 
 

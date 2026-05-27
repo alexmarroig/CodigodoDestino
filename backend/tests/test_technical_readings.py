@@ -7,6 +7,14 @@ from engine.technical_readings import build_signal_reading, format_technical_blo
 def test_polish_portuguese_adds_accents() -> None:
     assert "não" in polish_portuguese("nao da para evitar")
     assert "você" in polish_portuguese("voce decide")
+    assert "está" in polish_portuguese("O mapa esta pressionado")
+    assert "evitável" in polish_portuguese("Parcialmente evitavel")
+
+
+def test_polish_portuguese_translates_english_planets() -> None:
+    assert "Netuno" in polish_portuguese("Neptune em oposicao com Venus")
+    assert "Plutão" in polish_portuguese("Pluto square Moon")
+    assert "Vênus" in polish_portuguese("transito de Venus na casa 7")
 
 
 def test_build_signal_reading_includes_aspect_and_when() -> None:
@@ -31,6 +39,7 @@ def test_build_signal_reading_includes_aspect_and_when() -> None:
     )
     assert "quadratura" in reading["aspect_line"].lower()
     assert "10 de maio de 2026" in reading["when"]
+    assert reading["when"].count("10 de maio de 2026") == 1
     assert "anular" in reading["avoidability"] or "evitável" in reading["avoidability"]
 
     block = format_technical_block([reading])

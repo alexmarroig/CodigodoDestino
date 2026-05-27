@@ -209,6 +209,25 @@ def test_fast_only_transit_false_with_slow():
 # ---------------------------------------------------------------------------
 
 class TestSeparacaoTermino:
+    def test_sun_jupiter_h7_with_slow_elsewhere_not_separacao(self):
+        """Sun/Jupiter in H7 alone must not qualify as separacao even with 3 techniques."""
+        signals = [
+            _signal("sun", "jupiter", "square", technique="transits", house=7),
+            _signal("mercury", "saturn", "square", technique="progressions"),
+            _signal("moon", "uranus", "trine", technique="solar_return"),
+        ]
+        result = classify_relationship_conflict_subtype(signals, [], num_techniques=3)
+        assert result != "separacao_termino"
+
+    def test_neptune_pluto_solar_arc_not_separacao(self):
+        signals = [
+            _signal("neptune", "pluto", "conjunction", technique="solar_arc"),
+            _signal("sun", "jupiter", "square", technique="transits", house=7),
+            _signal("saturn", "venus", "square", technique="transits", house=7),
+        ]
+        result = classify_relationship_conflict_subtype(signals, [], num_techniques=3)
+        assert result == "separacao_termino"
+
     def test_slow_planet_h7_3_techniques(self):
         signals = [
             _signal("saturn", "venus", "square", technique="transits", house=7),

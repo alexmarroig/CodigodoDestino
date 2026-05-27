@@ -182,14 +182,24 @@ def test_human_summary_excludes_leitura_tecnica():
         techniques=["transits", "progressions", "numerology"],
         has_peak=True,
     )
+    category_signals = [
+        {
+            "technique": "transits",
+            "evidence": {"aspect": "square", "planet_a": "mars", "planet_b": "saturn"},
+        }
+    ]
+    cluster_metrics = {"technique_count": 3, "theme_convergence": 2, "effective_independent_signals": 3}
     result = _build_human_translation(
         "rupture",
         "maio de 2026",
         independent_signals=3,
+        category_signals=category_signals,
         user_context={},
         astro_reason="Marte quadratura Saturno ativa conflito.",
         technical_items=tech_items,
         quality_summary=quality,
+        cluster_metrics=cluster_metrics,
+        time_window={"start": "2026-05-01", "end": "2026-05-31", "peak": "2026-05-15"},
     )
     human_summary = result.get("human_summary", "")
     assert "Leitura técnica" not in human_summary
@@ -205,14 +215,24 @@ def test_formatted_block_excludes_leitura_tecnica():
         techniques=["transits", "progressions", "numerology"],
         has_peak=True,
     )
+    category_signals = [
+        {
+            "technique": "transits",
+            "evidence": {"aspect": "square", "planet_a": "mars", "planet_b": "saturn"},
+        }
+    ]
+    cluster_metrics = {"technique_count": 3, "theme_convergence": 2, "effective_independent_signals": 3}
     result = _build_human_translation(
         "rupture",
         "maio de 2026",
         independent_signals=3,
+        category_signals=category_signals,
         user_context={},
         astro_reason="Marte quadratura Saturno ativa conflito.",
         technical_items=tech_items,
         quality_summary=quality,
+        cluster_metrics=cluster_metrics,
+        time_window={"start": "2026-05-01", "end": "2026-05-31", "peak": "2026-05-15"},
     )
     formatted_block = result.get("formatted_block", "")
     assert "Leitura técnica" not in formatted_block

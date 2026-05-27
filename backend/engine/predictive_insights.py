@@ -5,16 +5,24 @@ from typing import Any
 
 from engine.analysis import DOMAIN_LABELS
 from engine.astro_confirmation import filter_self_aspects, score_signal
+from engine.astro_provenance import (
+    build_astro_provenance,
+    build_human_por_que_from_provenance,
+    format_provenance_technical_block,
+)
+from engine.cluster_convergence import compute_cluster_metrics
 from engine.certainty import (
     CERTAINTY_LABELS,
     apply_certainty_prefix,
-    certainty_from_signal_count,
+    resolve_certainty,
 )
+from engine.signal_enrichment import has_hard_slow_transit, only_soft_slow_transits
 from engine.date_formatting import format_time_window_label, parse_iso_date
 from engine.event_subtypes import (
     build_subtype_text,
     classify_event_subtype,
 )
+from engine.signal_enrichment import format_brady_por_que_line
 from engine.portuguese_text import polish_portuguese
 from engine.technical_readings import (
     CATEGORY_AVOIDABILITY,
@@ -239,16 +247,32 @@ def _merged_window(items: list[dict[str, Any]], reference_date: date) -> dict[st
 
     start = min(starts)
     end = max(ends)
-    peak = min(
-        peaks or [start],
-        key=lambda item: abs((item - reference_date).days),
-    )
-    return {
+    duration_days = max(1, (end - start).days + 1)
+
+    peak: date | None = None
+    if peaks:
+        candidate_peaks = list(peaks)
+        # Default windows from analysis pin peak=reference_date; for long cycles that
+        # produces misleading "pico hoje" on every bullet.
+        if duration_days > 90:
+            candidate_peaks = [
+                p for p in candidate_peaks
+                if abs((p - reference_date).days) > 7
+            ] or list(peaks)
+        future = [p for p in candidate_peaks if p >= reference_date]
+        pool = future or candidate_peaks
+        peak = min(pool, key=lambda item: abs((item - reference_date).days))
+        if duration_days > 180 and abs((peak - reference_date).days) <= 7:
+            peak = None
+
+    merged: dict[str, Any] = {
         "start": start.isoformat(),
         "end": end.isoformat(),
-        "peak": peak.isoformat(),
-        "duration_days": max(1, (end - start).days + 1),
+        "duration_days": duration_days,
     }
+    if peak is not None:
+        merged["peak"] = peak.isoformat()
+    return merged
 
 
 def _relative_timeframe(reference_date: date, window: dict[str, Any] | None) -> str:
@@ -267,6 +291,10 @@ def _build_astrological_reason(
 
     for signal in _sort_signals(signals)[:3]:
         technique = TECHNIQUE_LABELS.get(str(signal.get("technique")), str(signal.get("technique", "Sinal")))
+        brady = format_brady_por_que_line(dict(signal.get("evidence") or {}))
+        if brady:
+            parts.append(f"{technique} — {brady}")
+            continue
         label = str(signal.get("label") or "").strip()
         if label:
             parts.append(f"{technique}: {label}")
@@ -390,19 +418,55 @@ def _human_por_que_from_items(technical_items: list[dict[str, str]]) -> str:
     return "; ".join(parts) if parts else ""
 
 
+def _pick_primary_scenario(
+    category_key: str,
+    scenarios: list[str],
+    signals: list[dict[str, Any]],
+) -> str:
+    if not scenarios:
+        return CATEGORY_CONCRETE_EVENT.get(category_key, "")
+    soft_only = only_soft_slow_transits(signals)
+    hard_slow = has_hard_slow_transit(signals)
+    if category_key == "career":
+        if soft_only and not hard_slow:
+            return scenarios[1] if len(scenarios) > 1 else scenarios[0]
+        if hard_slow:
+            return scenarios[0]
+    if category_key == "finance":
+        if soft_only and not hard_slow:
+            return scenarios[0]
+        if hard_slow:
+            return scenarios[1] if len(scenarios) > 1 else scenarios[0]
+    if category_key in {"rupture", "health"} and soft_only and not hard_slow:
+        return scenarios[-1] if scenarios else scenarios[0]
+    return scenarios[0]
+
+
 def _build_human_translation(
     category_key: str,
     time_label: str,
     *,
     independent_signals: int,
+    category_signals: list[dict[str, Any]],
     user_context: dict[str, Any],
     astro_reason: str,
     technical_items: list[dict[str, str]],
     quality_summary: str,
+    cluster_metrics: dict[str, Any],
+    time_window: dict[str, Any] | None,
+    rule_hits: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     template = REALITY_TEMPLATES[category_key]
     placeholders = _build_context_placeholders(user_context)
-    certainty = certainty_from_signal_count(independent_signals)
+    theme_conv = int(cluster_metrics.get("theme_convergence") or 0)
+    hard_slow = has_hard_slow_transit(category_signals)
+    certainty = resolve_certainty(
+        independent_signals,
+        category_signals,
+        category_key=category_key,
+        theme_convergence=theme_conv,
+        has_hard_slow=hard_slow,
+    )
     what = apply_certainty_prefix(_personalize_template_text(template["what"], placeholders), certainty)
     scenarios = [_personalize_template_text(item, placeholders) for item in template["scenarios"][:3]]
     if category_key == "rupture" and user_context.get("father_status") == "deceased":
@@ -410,17 +474,25 @@ def _build_human_translation(
             item for item in scenarios
             if "pai" not in item.lower() or "mae" in item.lower()
         ] or scenarios
-    primary_scenario = scenarios[0] if scenarios else CATEGORY_CONCRETE_EVENT[category_key]
+    primary_scenario = _pick_primary_scenario(category_key, scenarios, category_signals)
+    provenance = build_astro_provenance(
+        signals=category_signals,
+        rule_hits=rule_hits,
+        time_window=time_window,
+        certainty_level=certainty,
+        category_key=category_key,
+        cluster_metrics=cluster_metrics,
+    )
+    human_por_que = build_human_por_que_from_provenance(provenance) or _human_por_que_from_items(technical_items)
     technical_block = format_technical_block(technical_items)
     avoidability = CATEGORY_AVOIDABILITY.get(category_key, "Parcialmente evitável com escolha consciente.")
 
-    # Compact human-readable por_que (no raw codes, no duplication)
-    human_por_que = _human_por_que_from_items(technical_items)
     por_que_line = f"Por quê: {human_por_que}\n" if human_por_que else ""
+    provenance_block = format_provenance_technical_block(provenance)
 
     # 3-5 line human summary for surface display
     human_summary = polish_portuguese(
-        f"O que: {primary_scenario}\n"
+        f"O quê: {primary_scenario}\n"
         f"Quando: {time_label}\n"
         f"{por_que_line}"
         f"Evitar: {avoidability}"
@@ -433,6 +505,7 @@ def _build_human_translation(
         f"Por que (astrologia/numerologia): {astro_reason}\n\n"
         f"{quality_summary}\n\n"
         f"{technical_block}\n\n"
+        f"{provenance_block}\n\n"
         f"Dá para evitar? {avoidability}\n\n"
         f"Impacto: {_personalize_template_text(template['impact'], placeholders)}\n\n"
         f"Risco: {_personalize_template_text(template['risk'], placeholders)}\n\n"
@@ -457,6 +530,8 @@ def _build_human_translation(
         "certainty_label": CERTAINTY_LABELS[certainty],
         "human_summary": human_summary,
         "formatted_block": formatted_block,
+        "astro_provenance": provenance,
+        "cluster_metrics": cluster_metrics,
     }
 
 
@@ -516,9 +591,12 @@ def build_predictive_insights(
             or event.get("domain") in definition["domains"]
         ]
 
-        techniques = sorted({str(signal["technique"]) for signal in category_signals})
-        independent_signals = len(techniques)
-        probability_level = PROBABILITY_LEVELS.get(min(independent_signals, 4), "High")
+        cluster_metrics = compute_cluster_metrics(category_signals, category_rule_hits)
+        meaningful_signals = filter_self_aspects(category_signals)
+        techniques = list(cluster_metrics.get("techniques") or [])
+        independent_signals = int(cluster_metrics.get("effective_independent_signals") or 0)
+        technique_count = int(cluster_metrics.get("technique_count") or 0)
+        probability_level = PROBABILITY_LEVELS.get(min(technique_count, 4), "High")
 
         if independent_signals <= 1:
             continue
@@ -544,7 +622,6 @@ def build_predictive_insights(
             }
         priority_boost = _category_priority_boost(definition["key"], user_context)
         # Use confirmation-weighted signal score (filters self-aspects automatically)
-        meaningful_signals = filter_self_aspects(category_signals)
         weighted_score_sum = sum(score_signal(s) for s in meaningful_signals[:4])
         probability_score = round(
             min(
@@ -557,7 +634,13 @@ def build_predictive_insights(
             ),
             2,
         )
-        certainty_level = certainty_from_signal_count(independent_signals)
+        certainty_level = resolve_certainty(
+            independent_signals,
+            meaningful_signals,
+            category_key=definition["key"],
+            theme_convergence=int(cluster_metrics.get("theme_convergence") or 0),
+            has_hard_slow=has_hard_slow_transit(meaningful_signals),
+        )
         entry = {
             "category_key": definition["key"],
             "event_type": definition["event_type"],
@@ -565,6 +648,8 @@ def build_predictive_insights(
             "certainty_level": certainty_level,
             "certainty_label": CERTAINTY_LABELS[certainty_level],
             "independent_signals": independent_signals,
+            "technique_count": technique_count,
+            "theme_convergence": cluster_metrics.get("theme_convergence"),
             "probability_score": probability_score,
             "time_window": time_window or {"label": time_label, "formatted_label": time_label},
             "when_label": time_label,
@@ -608,10 +693,14 @@ def build_predictive_insights(
                 definition["key"],
                 time_label,
                 independent_signals=independent_signals,
+                category_signals=category_signals,
                 user_context=user_context,
                 astro_reason=entry["explanation"],
                 technical_items=technical_items,
                 quality_summary=quality_summary,
+                cluster_metrics=cluster_metrics,
+                time_window=time_window,
+                rule_hits=category_rule_hits,
             )
         )
 

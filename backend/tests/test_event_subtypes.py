@@ -72,7 +72,15 @@ def test_fatalistic_requires_tense_aspect():
 
 
 def test_fatalistic_with_tense_aspect_and_threshold():
-    signals = _make_signals("square", count=3)
+    signals = [
+        {
+            "technique": "transits",
+            "label": f"Sinal {i}",
+            "weight": 4.0,
+            "evidence": {"aspect": "square", "planet_a": "pluto", "planet_b": "venus"},
+        }
+        for i in range(3)
+    ]
     rule_hits = [{"code": "breakup", "weight": 4.0, "label": "Ruptura detectada"}]
     result = build_subtype_text(
         "separacao_abrupta",
@@ -109,6 +117,52 @@ def test_source_label_numerology_only():
 
 def test_source_label_empty():
     assert _primary_source_label([]) == "astrologia"
+
+
+def test_por_que_prioritizes_slow_over_sun_jupiter():
+    signals = [
+        {
+            "technique": "transits",
+            "label": "Sun square Jupiter",
+            "weight": 2.0,
+            "evidence": {
+                "aspect": "square",
+                "planet_a": "Sun",
+                "planet_b": "Jupiter",
+                "transit_house": 7,
+            },
+        },
+        {
+            "technique": "transits",
+            "label": "Saturn square Venus",
+            "weight": 4.0,
+            "evidence": {
+                "aspect": "square",
+                "planet_a": "Saturn",
+                "planet_b": "Venus",
+                "transit_house": 7,
+            },
+        },
+        {
+            "technique": "solar_arc",
+            "label": "Neptune Pluto",
+            "weight": 1.0,
+            "evidence": {"aspect": "conjunction", "planet_a": "Neptune", "planet_b": "Pluto"},
+        },
+    ]
+    result = build_subtype_text(
+        "separacao_termino",
+        signals=signals,
+        rule_hits=[{"code": "breakup", "weight": 4.0, "label": "Ruptura"}],
+        reference_date=date(2026, 5, 27),
+        user_context={"relationship_status": "married", "current_partner_role": "wife"},
+        independent_signals=3,
+        time_window={"start": "2026-05-27", "end": "2028-05-17"},
+    )
+    por_que = result.get("subtype_por_que", "").lower()
+    assert "saturno" in por_que or "saturn" in por_que
+    assert "sol" not in por_que and "júpiter" not in por_que and "jupiter" not in por_que
+    assert "netuno" not in por_que and "neptune" not in por_que and "plutão" not in por_que
 
 
 def test_build_subtype_text_includes_source_technique():
@@ -191,7 +245,7 @@ def test_acidente_fisico_classification():
                 "polarity": "challenging", "weight": 0.9,
                 "evidence": {"aspect": "square"}}]
     result = classify_event_subtype("health", signals, rule_hits, [], {})
-    assert result == "acidente_fisico"
+    assert result == "risco_fisico_agudo"
 
 
 def test_acidente_emocional_classification():
