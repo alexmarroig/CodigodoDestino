@@ -251,12 +251,3 @@ function HeroWhisper({ title, copy }: { title: string; copy: string }) {
     </div>
   )
 }
-
-function PortalLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-start justify-between gap-4 border-b border-[var(--line)] pb-4 text-sm last:border-b-0 last:pb-0">
-      <span className="text-[var(--muted-soft)]">{label}</span>
-      <span className="max-w-[70%] text-right text-[var(--fg)]">{value}</span>
-    </div>
-  )
-}
