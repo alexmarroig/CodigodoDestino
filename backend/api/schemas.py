@@ -27,11 +27,21 @@ class UserContextRequest(BaseModel):
         "partner",
         "unknown",
     ] | None = None
+    employment_status: Literal[
+        "employed",
+        "unemployed",
+        "self_employed",
+        "student",
+        "retired",
+    ] | None = None
     has_children: bool | None = None
     father_status: Literal["alive", "deceased", "unknown"] | None = None
     mother_status: Literal["alive", "deceased", "unknown"] | None = None
     current_city: str | None = Field(default=None, max_length=120)
     lives_alone: bool | None = None
+    living_situation: Literal["alone", "with_partner", "with_family", "shared"] | None = None
+    father_present: bool | None = None
+    mother_present: bool | None = None
     father_relationship: Literal[
         "close",
         "distant",
@@ -59,7 +69,6 @@ class UserContextRequest(BaseModel):
     country_change: bool | None = None
     financial_crisis: bool | None = None
     important_death: str | None = Field(default=None, max_length=200)
-    living_situation: str | None = Field(default=None, max_length=120)
 
 
 class RelatedPersonRequest(BaseModel):
