@@ -5,6 +5,7 @@ from typing import Any
 
 from engine.certainty import CERTAINTY_LABELS, apply_certainty_prefix, certainty_from_signal_count
 from engine.date_formatting import format_date_pt, format_time_window_label
+from engine.portuguese_text import polish_portuguese
 from engine.predictive_insights import build_predictive_insights, format_prediction_block
 
 SECTION_DEFINITIONS = [
@@ -123,11 +124,11 @@ def _section(
     return {
         "id": section_id,
         "title": title,
-        "summary": summary.strip(),
-        "body": body.strip(),
+        "summary": polish_portuguese(summary.strip()),
+        "body": polish_portuguese(body.strip()),
         "certainty_level": certainty_level,
         "certainty_label": CERTAINTY_LABELS.get(certainty_level, CERTAINTY_LABELS["tendency"]),
-        "evidence": list(evidence or [])[:6],
+        "evidence": [polish_portuguese(str(item)) for item in (evidence or [])[:6]],
     }
 
 

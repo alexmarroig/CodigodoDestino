@@ -142,6 +142,9 @@ def test_predictive_insights_require_three_independent_signals() -> None:
     assert "Quando:" in detected["career"]["formatted_block"]
     assert "O que acontece:" in detected["career"]["formatted_block"]
     assert "Por que (astrologia/numerologia):" in detected["career"]["formatted_block"]
+    assert "Leitura técnica:" in detected["career"]["formatted_block"]
+    assert "Dá para evitar?" in detected["career"]["formatted_block"]
+    assert detected["career"]["quality_summary"]
     assert watchlist["health"]["probability_level"] == "Baixa"
     assert watchlist["health"]["certainty_level"] == "tendency"
     assert watchlist["health"]["independent_signals"] == 2

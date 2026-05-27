@@ -10,6 +10,7 @@ from core.cache import CacheClient
 from core.config import settings
 from core.serialization import json_dumps_text, stable_hash
 from engine.date_formatting import format_date_pt
+from engine.portuguese_text import polish_portuguese
 from engine.predictive_insights import format_prediction_block
 
 PROMPT_META = {
@@ -394,8 +395,8 @@ def _build_local_fallback(
                 f"Ponto de cautela: {uncertainties[0]['message']} Observe repeticao antes de tratar isso como fato fechado."
             )
 
-        paragraphs.append(f"Confianca geral: {confidence.get('level', 'low')}.")
-        text = "\n\n".join(part for part in paragraphs if part)
+        paragraphs.append(f"Confiança geral: {confidence.get('level', 'low')}.")
+        text = polish_portuguese("\n\n".join(part for part in paragraphs if part))
     elif not events:
         text = (
             "O periodo nao mostra convergencia suficiente para previsoes fortes. "
@@ -449,7 +450,7 @@ def _build_local_fallback(
         )
 
     return {
-        "text": text,
+        "text": polish_portuguese(text),
         "model": "local-fallback",
         "provider": "local-fallback",
         "usage": {"input_tokens": 0, "output_tokens": 0},

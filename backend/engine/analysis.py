@@ -151,14 +151,14 @@ ANGLE_DOMAIN_MAP = {
 POINT_DISPLAY_NAMES = {
     "sun": "Sol",
     "moon": "Lua",
-    "mercury": "Mercurio",
-    "venus": "Venus",
+    "mercury": "Mercúrio",
+    "venus": "Vênus",
     "mars": "Marte",
-    "jupiter": "Jupiter",
+    "jupiter": "Júpiter",
     "saturn": "Saturno",
     "uranus": "Urano",
     "neptune": "Netuno",
-    "pluto": "Plutao",
+    "pluto": "Plutão",
     "ascendant": "Ascendente",
     "descendant": "Descendente",
     "midheaven": "MC",
@@ -257,10 +257,10 @@ def _planet_house_map(planets: dict[str, dict[str, Any]], houses: list[float]) -
 
 def _signal_label(planet_a: str, aspect: str, planet_b: str) -> str:
     translated = {
-        "conjunction": "conjuncao",
-        "opposition": "oposicao",
+        "conjunction": "conjunção",
+        "opposition": "oposição",
         "square": "quadratura",
-        "trine": "trigono",
+        "trine": "trígono",
         "sextile": "sextil",
     }
     left = POINT_DISPLAY_NAMES.get(planet_a, planet_a.title())

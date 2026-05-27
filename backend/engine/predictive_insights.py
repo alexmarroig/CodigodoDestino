@@ -10,11 +10,18 @@ from engine.certainty import (
     certainty_from_signal_count,
 )
 from engine.date_formatting import format_time_window_label, parse_iso_date
+from engine.portuguese_text import polish_portuguese
+from engine.technical_readings import (
+    CATEGORY_AVOIDABILITY,
+    build_quality_summary,
+    build_technical_items,
+    format_technical_block,
+)
 
 CATEGORY_DEFINITIONS = [
     {
         "key": "health",
-        "event_type": "Saude, doenca ou acidente",
+        "event_type": "Saúde, doença ou acidente",
         "domains": {"saude_rotina", "psicologico_espiritual"},
         "allowed_polarities": {"challenging", "mixed"},
         "rule_codes": {
@@ -61,7 +68,7 @@ CATEGORY_DEFINITIONS = [
     },
     {
         "key": "rupture",
-        "event_type": "Briga, ruptura ou separacao",
+        "event_type": "Briga, ruptura ou separação",
         "domains": {"relacionamentos", "familia_lar", "psicologico_espiritual"},
         "allowed_polarities": {"challenging", "mixed"},
         "rule_codes": {
@@ -76,7 +83,7 @@ CATEGORY_DEFINITIONS = [
     },
     {
         "key": "major_transitions",
-        "event_type": "Grande mudanca de vida",
+        "event_type": "Grande mudança de vida",
         "domains": {
             "identidade",
             "crises_recursos",
@@ -123,59 +130,59 @@ CATEGORY_CONCRETE_EVENT = {
 
 REALITY_TEMPLATES = {
     "health": {
-        "what": "Ha pressao real sobre corpo, rotina e estabilidade emocional. O periodo pode trazer doenca leve, esgotamento ou risco maior de acidente se houver imprudencia.",
+        "what": "Há pressão real sobre corpo, rotina e estabilidade emocional. O período pode trazer doença leve, esgotamento ou risco maior de acidente se houver imprudência.",
         "scenarios": [
-            "Carga acumulada de trabalho, familia ou estudo derruba sono, foco e disposicao ate o corpo pedir pausa.",
-            "Stress, queda imunologica ou um mal-estar obriga a reduzir compromissos por alguns dias.",
-            "Se houver pressa, distração ou irritacao ao volante, aumenta o risco de acidente em transito ou pequenos incidentes.",
+            "Carga acumulada de trabalho, família ou estudo derruba sono, foco e disposição até o corpo pedir pausa.",
+            "Estresse, queda imunológica ou mal-estar obriga a reduzir compromissos por alguns dias.",
+            "Se houver pressa, distração ou irritação ao volante, aumenta o risco de acidente em trânsito ou pequenos incidentes.",
         ],
-        "impact": "A rotina perde rendimento e pode exigir corte de agenda, repouso ou reorganizacao pratica.",
-        "risk": "Se isso for ignorado, o quadro pode virar afastamento, erro serio, piora emocional ou acidente evitavel.",
+        "impact": "A rotina perde rendimento e pode exigir corte de agenda, repouso ou reorganização prática.",
+        "risk": "Se isso for ignorado, o quadro pode virar afastamento, erro sério, piora emocional ou acidente evitável.",
         "action": "Reduza excesso, respeite sinais do corpo, evite dirigir ou agir no impulso quando estiver esgotado e procure ajuda profissional se o sintoma persistir.",
     },
     "career": {
-        "what": "Ha mudanca concreta na vida profissional. O periodo pode trazer oportunidade nova, pressao por resultado, troca de funcao ou perda de emprego se a estrutura atual ja estiver fragil.",
+        "what": "Há mudança concreta na vida profissional. O período pode trazer oportunidade nova, pressão por resultado, troca de função ou perda de emprego se a estrutura atual já estiver frágil.",
         "scenarios": [
-            "Chefe, cliente ou empresa pressiona mais e obriga uma decisao sobre sair, ficar ou mudar de posicao.",
-            "Surge proposta de trabalho, projeto ou promocao, mas ela cobra responsabilidade maior ou reposicionamento rapido.",
-            "Se o ambiente ja esta instavel, cresce a chance de corte, desgaste forte ou saida forçada.",
+            "Chefe, cliente ou empresa pressiona mais e obriga uma decisão sobre sair, ficar ou mudar de posição.",
+            "Surge proposta de trabalho, projeto ou promoção, mas ela cobra responsabilidade maior ou reposicionamento rápido.",
+            "Se o ambiente já está instável, cresce a chance de corte, desgaste forte ou saída forçada.",
         ],
-        "impact": "Carreira, renda, rotina e imagem publica podem mudar no mesmo bloco de tempo.",
-        "risk": "Se voce empurrar a decisao, pode perder tempo, dinheiro e margem de negociacao.",
-        "action": "Trate isso como fase de decisao profissional. Atualize curriculo, documente fatos, negocie com clareza e nao espere a situacao piorar para agir.",
+        "impact": "Carreira, renda, rotina e imagem pública podem mudar no mesmo bloco de tempo.",
+        "risk": "Se você empurrar a decisão, pode perder tempo, dinheiro e margem de negociação.",
+        "action": "Trate isso como fase de decisão profissional. Atualize currículo, documente fatos, negocie com clareza e não espere a situação piorar para agir.",
     },
     "relationships": {
-        "what": "Relacionamentos entram em fase de definicao. O periodo favorece namoro serio, noivado, casamento ou uma conversa decisiva com {partner_role} sobre o futuro.",
+        "what": "Relacionamentos entram em fase de definição. O período favorece namoro sério, noivado, casamento ou conversa decisiva com {partner_role} sobre o futuro.",
         "scenarios": [
-            "A relacao com {partner_role} avanca para compromisso mais claro, como oficializacao, morar junto ou casamento.",
-            "Alguem novo entra e rapidamente vira foco emocional principal.",
-            "Uma conversa objetiva com {partner_role} define se a relacao vai crescer ou parar de vez.",
+            "A relação com {partner_role} avança para compromisso mais claro, como oficialização, morar junto ou casamento.",
+            "Alguém novo entra e rapidamente vira foco emocional principal.",
+            "Uma conversa objetiva com {partner_role} define se a relação vai crescer ou parar de vez.",
         ],
-        "impact": "A vida afetiva ganha rumo mais claro: compromisso, mudanca de status ou encerramento de indefinicao.",
-        "risk": "Se voce evitar a conversa certa, a relacao pode entrar em desgaste, ciúme, promessa vazia ou triangulo emocional.",
-        "action": "Diga o que quer, observe atitude concreta do outro e diferencie paixao momentanea de projeto real de vida.",
+        "impact": "A vida afetiva ganha rumo mais claro: compromisso, mudança de status ou encerramento de indefinição.",
+        "risk": "Se você evitar a conversa certa, a relação pode entrar em desgaste, ciúme, promessa vazia ou triângulo emocional.",
+        "action": "Diga o que quer, observe atitude concreta do outro e diferencie paixão momentânea de projeto real de vida.",
     },
     "rupture": {
-        "what": "Ha risco alto de briga seria, corte emocional ou separacao. Isso pode acontecer com {partner_role}, ex, familia ou alguem muito proximo.",
+        "what": "Há risco alto de briga séria, corte emocional ou separação. Isso pode acontecer com {partner_role}, ex, família ou alguém muito próximo.",
         "scenarios": [
-            "A relacao com {partner_role} chega ao limite depois de desgaste, frieza ou conflito repetido.",
-            "Uma conversa pesada com pai, mae ou familiar abre distancia, magoa ou afastamento mais direto.",
-            "Voce decide parar de tolerar uma situacao que ja vinha consumindo sua paz.",
+            "A relação com {partner_role} chega ao limite depois de desgaste, frieza ou conflito repetido.",
+            "Uma conversa pesada com pai, mãe ou familiar abre distância, mágoa ou afastamento mais direto.",
+            "Você decide parar de tolerar uma situação que já vinha consumindo sua paz.",
         ],
-        "impact": "Vinculos mudam de lugar rapidamente e isso mexe com rotina, moradia, apoio emocional e senso de estabilidade.",
-        "risk": "Se for empurrado com a barriga, o conflito pode virar humilhacao, perda de confianca ou separacao mais dura.",
-        "action": "Conduza a conversa com clareza, prepare limite e nao espere o problema se resolver sozinho.",
+        "impact": "Vínculos mudam de lugar rapidamente e isso mexe com rotina, moradia, apoio emocional e senso de estabilidade.",
+        "risk": "Se for empurrado com a barriga, o conflito pode virar humilhação, perda de confiança ou separação mais dura.",
+        "action": "Conduza a conversa com clareza, prepare limite e não espere o problema se resolver sozinho.",
     },
     "major_transitions": {
-        "what": "Esta e uma fase de virada grande. Trabalho, dinheiro, identidade, cidade, rotina ou relacoes podem mudar juntos no mesmo ciclo.",
+        "what": "Esta é uma fase de virada grande. Trabalho, dinheiro, identidade, cidade, rotina ou relações podem mudar juntos no mesmo ciclo.",
         "scenarios": [
-            "Uma mudanca de carreira puxa ajuste financeiro, afetivo e pessoal ao mesmo tempo.",
-            "Voce fecha um capitulo antigo e comeca outro com prioridades bem diferentes.",
-            "A pressao externa obriga uma decisao que muda o jeito de viver, trabalhar ou se posicionar.",
+            "Uma mudança de carreira puxa ajuste financeiro, afetivo e pessoal ao mesmo tempo.",
+            "Você fecha um capítulo antigo e começa outro com prioridades bem diferentes.",
+            "A pressão externa obriga uma decisão que muda o jeito de viver, trabalhar ou se posicionar.",
         ],
-        "impact": "O mapa da vida muda de verdade: direcao, compromissos, dinheiro e estabilidade emocional entram em rearranjo.",
-        "risk": "Se voce reagir tarde, a mudanca vem de forma caotica e mais cara.",
-        "action": "Assuma que esta em virada de vida, corte o que nao sustenta mais e escolha uma direcao antes que o contexto escolha por voce.",
+        "impact": "O mapa da vida muda de verdade: direção, compromissos, dinheiro e estabilidade emocional entram em rearranjo.",
+        "risk": "Se você reagir tarde, a mudança vem de forma caótica e mais cara.",
+        "action": "Assuma que está em virada de vida, corte o que não sustenta mais e escolha uma direção antes que o contexto escolha por você.",
     },
 }
 
@@ -336,28 +343,31 @@ def _build_human_translation(
     independent_signals: int,
     user_context: dict[str, Any],
     astro_reason: str,
+    technical_items: list[dict[str, str]],
+    quality_summary: str,
 ) -> dict[str, Any]:
     template = REALITY_TEMPLATES[category_key]
     placeholders = _build_context_placeholders(user_context)
     certainty = certainty_from_signal_count(independent_signals)
-    concrete_event = _personalize_template_text(
-        CATEGORY_CONCRETE_EVENT[category_key],
-        placeholders,
-    )
-    what = _personalize_template_text(template["what"], placeholders)
-    what = apply_certainty_prefix(what, certainty)
+    what = apply_certainty_prefix(_personalize_template_text(template["what"], placeholders), certainty)
     scenarios = [_personalize_template_text(item, placeholders) for item in template["scenarios"][:3]]
     if category_key == "rupture" and user_context.get("father_status") == "deceased":
         scenarios = [
             item for item in scenarios
             if "pai" not in item.lower() or "mae" in item.lower()
         ] or scenarios
-    primary_scenario = scenarios[0] if scenarios else concrete_event
+    primary_scenario = scenarios[0] if scenarios else CATEGORY_CONCRETE_EVENT[category_key]
+    technical_block = format_technical_block(technical_items)
+    avoidability = CATEGORY_AVOIDABILITY.get(category_key, "Parcialmente evitável com escolha consciente.")
     return {
         "what_is_happening": what,
         "primary_scenario": primary_scenario,
         "when_label": time_label,
         "astro_reason": astro_reason,
+        "technical_items": technical_items,
+        "technical_block": technical_block,
+        "quality_summary": quality_summary,
+        "avoidability_summary": avoidability,
         "what_this_may_look_like_in_real_life": scenarios[:2],
         "possible_scenarios": scenarios,
         "impact": _personalize_template_text(template["impact"], placeholders),
@@ -365,10 +375,13 @@ def _build_human_translation(
         "recommended_action": _personalize_template_text(template["action"], placeholders),
         "certainty_level": certainty,
         "certainty_label": CERTAINTY_LABELS[certainty],
-        "formatted_block": (
+        "formatted_block": polish_portuguese(
             f"Quando: {time_label}\n\n"
             f"O que acontece: {primary_scenario}\n\n"
             f"Por que (astrologia/numerologia): {astro_reason}\n\n"
+            f"{quality_summary}\n\n"
+            f"Leitura técnica:\n{technical_block}\n\n"
+            f"Dá para evitar? {avoidability}\n\n"
             f"Impacto: {_personalize_template_text(template['impact'], placeholders)}\n\n"
             f"Risco: {_personalize_template_text(template['risk'], placeholders)}\n\n"
             f"Ação recomendada: {_personalize_template_text(template['action'], placeholders)}"
@@ -381,11 +394,18 @@ def format_prediction_block(event: dict[str, Any]) -> str:
     when = str(window.get("formatted_label") or window.get("label") or event.get("when_label") or "período em formação")
     scenario = str(event.get("primary_scenario") or (event.get("possible_scenarios") or [""])[0] or event.get("what_is_happening") or "")
     reason = str(event.get("astro_reason") or event.get("explanation") or "")
-    return (
-        f"Quando: {when}\n\n"
-        f"O que acontece: {scenario}\n\n"
-        f"Por que (astrologia/numerologia): {reason}"
-    ).strip()
+    parts = [
+        f"Quando: {when}",
+        f"O que acontece: {scenario}",
+        f"Por que (astrologia/numerologia): {reason}",
+    ]
+    if event.get("quality_summary"):
+        parts.append(str(event["quality_summary"]))
+    if event.get("technical_block"):
+        parts.append(f"Leitura técnica:\n{event['technical_block']}")
+    if event.get("avoidability_summary"):
+        parts.append(f"Dá para evitar? {event['avoidability_summary']}")
+    return polish_portuguese("\n\n".join(parts).strip())
 
 
 def build_predictive_insights(
@@ -499,6 +519,18 @@ def build_predictive_insights(
                 }
             ),
         }
+        technical_items = build_technical_items(
+            signals=category_signals,
+            rule_hits=category_rule_hits,
+            reference_date=reference_date,
+            category_key=definition["key"],
+        )
+        quality_summary = build_quality_summary(
+            independent_signals=independent_signals,
+            probability_level=probability_level,
+            techniques=techniques,
+            has_peak=bool(time_window and time_window.get("peak")),
+        )
         entry.update(
             _build_human_translation(
                 definition["key"],
@@ -506,6 +538,8 @@ def build_predictive_insights(
                 independent_signals=independent_signals,
                 user_context=user_context,
                 astro_reason=entry["explanation"],
+                technical_items=technical_items,
+                quality_summary=quality_summary,
             )
         )
 

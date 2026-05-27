@@ -34,18 +34,18 @@ AREA_ADVICE = {
 }
 
 HOUSE_LABELS = {
-    1: "Casa 1 - Identidade",
-    2: "Casa 2 - Dinheiro e valor",
-    3: "Casa 3 - Movimento e comunicacao",
-    4: "Casa 4 - Familia e base",
-    5: "Casa 5 - Afeto e criatividade",
-    6: "Casa 6 - Rotina e saude",
-    7: "Casa 7 - Parcerias",
-    8: "Casa 8 - Viradas e recursos compartilhados",
-    9: "Casa 9 - Viagens e expansao",
-    10: "Casa 10 - Carreira e status",
-    11: "Casa 11 - Amigos e rede",
-    12: "Casa 12 - Inconsciente e encerramentos",
+    1: "Casa 1 — Identidade",
+    2: "Casa 2 — Dinheiro e valor",
+    3: "Casa 3 — Movimento e comunicação",
+    4: "Casa 4 — Família e base",
+    5: "Casa 5 — Afeto e criatividade",
+    6: "Casa 6 — Rotina e saúde",
+    7: "Casa 7 — Parcerias",
+    8: "Casa 8 — Viradas e recursos compartilhados",
+    9: "Casa 9 — Viagens e expansão",
+    10: "Casa 10 — Carreira e status",
+    11: "Casa 11 — Amigos e rede",
+    12: "Casa 12 — Inconsciente e encerramentos",
 }
 
 HOUSE_DOMAIN_MAP = {domain: house for house, domain in THEME_MAP.items()}
