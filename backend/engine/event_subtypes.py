@@ -17,8 +17,95 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from engine.date_formatting import format_date_pt, format_time_window_label
+from engine.date_formatting import format_assertive_when_label, format_date_pt, format_time_window_label
 from engine.portuguese_text import polish_portuguese
+
+# ---------------------------------------------------------------------------
+# Tense aspect helper
+# ---------------------------------------------------------------------------
+
+_TENSE_ASPECTS: frozenset[str] = frozenset({"square", "opposition", "conjunction"})
+
+
+def _has_tense_aspect(signals: list[dict[str, Any]]) -> bool:
+    """Return True if any signal carries a tense planetary aspect."""
+    for s in signals:
+        if str((s.get("evidence") or {}).get("aspect") or "") in _TENSE_ASPECTS:
+            return True
+    return False
+
+
+def _primary_source_label(signals: list[dict[str, Any]]) -> str:
+    """Return 'astrologia' unless all signals are numerology-based."""
+    for s in signals:
+        if str(s.get("technique") or "") != "numerology":
+            return "astrologia"
+    return "numerologia" if signals else "astrologia"
+
+
+_TECHNIQUE_LABELS_PT: dict[str, str] = {
+    "transits": "Trânsito",
+    "progressions": "Progressão",
+    "solar_return": "Retorno solar",
+    "solar_arc": "Arco solar",
+    "profections": "Profecção anual",
+    "numerology": "Numerologia",
+}
+
+_HOUSE_THEMES: dict[int, str] = {
+    1: "identidade", 2: "dinheiro", 3: "comunicação", 4: "família",
+    5: "afeto", 6: "rotina e saúde", 7: "parcerias",
+    8: "crises e recursos compartilhados", 9: "expansão", 10: "carreira",
+    11: "rede e amigos", 12: "inconsciente e encerramentos",
+}
+
+_ASPECT_NAMES_PT: dict[str, str] = {
+    "conjunction": "conjunção", "opposition": "oposição",
+    "square": "quadratura", "trine": "trígono", "sextile": "sextil",
+}
+
+
+def _enrich_por_que(
+    signals: list[dict[str, Any]],
+    rule_hits: list[dict[str, Any]],
+    matching_rule_codes: set[str],
+) -> str:
+    """Build a rich por_que string: 'Técnica: aspecto planeta_a/planeta_b, Casa N (tema)'."""
+    parts: list[str] = []
+
+    for s in signals[:3]:
+        technique = _TECHNIQUE_LABELS_PT.get(str(s.get("technique") or ""), "Técnica")
+        evidence = dict(s.get("evidence") or {})
+        label = str(s.get("label") or "").strip()
+        aspect = _ASPECT_NAMES_PT.get(str(evidence.get("aspect") or ""), "")
+        planet_a = str(evidence.get("planet_a") or "").replace("_", " ").title()
+        planet_b = str(evidence.get("planet_b") or "").replace("_", " ").title()
+        house = evidence.get("transit_house") or evidence.get("natal_house")
+        house_str = (
+            f", Casa {house} ({_HOUSE_THEMES.get(int(house), 'vida')})"
+            if isinstance(house, int)
+            else ""
+        )
+
+        if aspect and planet_a:
+            piece = f"{technique}: {aspect} {planet_a}"
+            if planet_b:
+                piece += f"/{planet_b}"
+            piece += house_str
+        elif label:
+            piece = f"{technique}: {label}{house_str}"
+        else:
+            continue
+        parts.append(piece)
+
+    for h in rule_hits[:2]:
+        if str(h.get("code", "")) in matching_rule_codes and h.get("label"):
+            parts.append(f"Regra: {h['label']}")
+
+    if not parts:
+        return "Convergência técnica detectada no mapa."
+    return "; ".join(parts)
+
 
 # ---------------------------------------------------------------------------
 # Subtype definitions
@@ -234,6 +321,75 @@ SUBTYPE_DEFINITIONS: dict[str, dict[str, Any]] = {
             "action": (
                 "Busque acompanhamento terapêutico, reduza exigências externas e "
                 "permita que o processo aconteça sem forçar normalidade."
+            ),
+        },
+    },
+
+    "acidente_fisico": {
+        "label": "Acidente ou risco físico",
+        "category": "health",
+        "rule_codes": {"accident_risk", "extreme_conflict"},
+        "priority_rule_codes": {"accident_risk"},
+        "min_techniques": 2,
+        "fatalistic_threshold": 3,
+        "avoidability": (
+            "Parcialmente evitável: atenção redobrada no trânsito, evitar pressa e "
+            "impulsividade reduz o risco — mas o período pede cautela real."
+        ),
+        "template": {
+            "what": (
+                "O mapa indica risco físico elevado: Marte em ângulo tenso ativa "
+                "probabilidade real de acidente, queda, impacto ou lesão corporal."
+            ),
+            "when_note": "O risco é mais alto em {when_peak}. Atenção máxima nesse período.",
+            "scenarios": [
+                "Acidente no trânsito causado por pressa, distração ou irritação ao volante.",
+                "Queda, impacto ou lesão física em atividade do dia a dia.",
+                "Procedimento médico ou cirúrgico com complicação inesperada.",
+            ],
+            "risk": (
+                "Ignorar os sinais de alerta pode resultar em afastamento prolongado, "
+                "cirurgia ou consequência financeira séria."
+            ),
+            "action": (
+                "Evite dirigir em estado de irritação, não tome decisões físicas "
+                "impulsivas e antecipe consultas médicas se houver sintoma."
+            ),
+        },
+    },
+
+    "acidente_emocional": {
+        "label": "Colapso ou trauma emocional",
+        "category": "health",
+        "rule_codes": {"emotional_low", "psychological_transformation", "deep_emotional_break"},
+        "priority_rule_codes": {"psychological_transformation"},
+        "min_techniques": 2,
+        "fatalistic_threshold": 3,
+        "avoidability": (
+            "Não evitável como processo: o colapso emocional é transformação forçada. "
+            "Dá para atravessar com suporte terapêutico."
+        ),
+        "template": {
+            "what": (
+                "O mapa aponta colapso ou trauma emocional: não é doença física, "
+                "é ruptura interna que derruba funcionamento, humor e senso de identidade."
+            ),
+            "when_note": (
+                "O período mais intenso é {when_peak}. "
+                "Antes disso, os sinais de alerta já estão presentes."
+            ),
+            "scenarios": [
+                "Crise de choro, paralisia emocional ou incapacidade temporária de funcionar normalmente.",
+                "Revelação ou evento externo que abala estrutura psicológica construída por anos.",
+                "Colapso de crença, propósito ou vínculo que sustentava a identidade.",
+            ],
+            "risk": (
+                "Sem suporte, o trauma pode virar depressão, isolamento ou "
+                "dissociação prolongada."
+            ),
+            "action": (
+                "Busque acompanhamento terapêutico agora, não espere o colapso para pedir ajuda. "
+                "Reduza exigências externas e permita que o processo aconteça."
             ),
         },
     },
@@ -486,8 +642,8 @@ SUBTYPE_DEFINITIONS: dict[str, dict[str, Any]] = {
     "filhos": {
         "label": "Filhos ou decisão sobre maternidade/paternidade",
         "category": "relationships",
-        "rule_codes": {"love_expansion", "commitment", "emotional_bond", "marriage_window"},
-        "priority_rule_codes": set(),
+        "rule_codes": {"love_expansion", "commitment", "emotional_bond", "marriage_window", "pregnancy_window"},
+        "priority_rule_codes": {"pregnancy_window"},
         "min_techniques": 2,
         "fatalistic_threshold": 4,
         "avoidability": (
@@ -559,7 +715,9 @@ _SUBTYPE_PRIORITY_ORDER: list[str] = [
     "separacao_abrupta",
     "afastamento",
     "briga_grave",
-    # health
+    # health (mais específico primeiro)
+    "acidente_fisico",
+    "acidente_emocional",
     "crise_saude",
     "cronico",
     "doenca_leve",
@@ -724,7 +882,7 @@ def build_subtype_text(
     when_start = format_date_pt(start_raw) if start_raw else when_peak
     when_end = format_date_pt(end_raw) if end_raw else when_peak
     when_range = (
-        format_time_window_label(time_window, reference_date=reference_date)
+        format_assertive_when_label(time_window, reference_date=reference_date)
         if time_window
         else "período em formação"
     )
@@ -750,6 +908,7 @@ def build_subtype_text(
     is_fatalistic = (
         independent_signals >= sd["fatalistic_threshold"]
         and len(heavy_hits) >= 1
+        and _has_tense_aspect(signals)
     )
 
     # Build fields
@@ -763,19 +922,10 @@ def build_subtype_text(
     action = fill(template.get("action", ""))
     avoidability = sd["avoidability"]
 
-    # Build por_que from signal labels and rule hit labels
-    signal_labels = [str(s.get("label", "")) for s in signals[:3] if s.get("label")]
-    hit_labels = [
-        str(h.get("label", ""))
-        for h in rule_hits[:2]
-        if h.get("label") and str(h.get("code", "")) in matching_rule_codes
-    ]
-    por_que_parts = signal_labels + hit_labels
-    por_que = (
-        "; ".join(por_que_parts)
-        if por_que_parts
-        else "Convergência técnica detectada no mapa."
-    )
+    # Build por_que with technique labels, aspect names, and house context
+    por_que = _enrich_por_que(signals, rule_hits, matching_rule_codes)
+
+    source_technique = _primary_source_label(signals)
 
     primary_scenario = scenarios[0] if scenarios else what
 
@@ -792,6 +942,7 @@ def build_subtype_text(
     return {
         "subtype_key": subtype_key,
         "subtype_label": sd["label"],
+        "source_technique": source_technique,
         "subtype_what": what,
         "subtype_when_note": when_note,
         "subtype_scenarios": scenarios,
