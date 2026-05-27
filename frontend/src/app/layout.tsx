@@ -2,6 +2,8 @@ import { ReactNode } from 'react'
 import type { Metadata } from 'next'
 import { Cormorant_Garamond, Manrope } from 'next/font/google'
 
+import { SiteNavBar } from '@/components/SiteNavBar'
+
 import './globals.css'
 
 const bodyFont = Manrope({
@@ -26,6 +28,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body
         className={`${bodyFont.variable} ${displayFont.variable} bg-[var(--bg)] font-sans text-[var(--fg)] antialiased`}
       >
+        <SiteNavBar />
         {children}
       </body>
     </html>

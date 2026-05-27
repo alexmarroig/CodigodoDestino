@@ -113,6 +113,9 @@ class Settings:
         "OPENROUTER_APP_NAME",
         "CodigodoDestino",
     )
+    astrology_database_url: str = _get_env("ASTROLOGY_DATABASE_URL", "")
+    astrology_school_code: str = _get_env("ASTROLOGY_SCHOOL_CODE", "luz_e_sombra")
+    astrology_database_timeout_seconds: float = _get_float("ASTROLOGY_DATABASE_TIMEOUT_SECONDS", 45.0)
     cors_allow_origins: list[str] = field(
         default_factory=lambda: _get_list(
             "CORS_ALLOW_ORIGINS",

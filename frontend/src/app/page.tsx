@@ -104,26 +104,7 @@ export default function Home() {
         className="pointer-events-none absolute right-[-12rem] top-[18rem] h-[36rem] w-[36rem] rounded-full border border-[var(--line)] opacity-20"
       />
 
-      <div className="relative mx-auto max-w-[1440px] px-5 pb-24 pt-6 sm:px-8 lg:px-10">
-        <header className="flex items-center justify-between gap-4 py-4">
-          <div className="flex items-center gap-4">
-            <BrandOrb size="header" className="shrink-0" />
-            <div className="space-y-2">
-              <p className="text-xs uppercase tracking-[0.44em] text-[var(--muted-soft)]">Codigo do Destino</p>
-              <p className="text-sm text-[var(--muted)]">Leitura pessoal, emocional e guiada.</p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/horaria"
-              className="ritual-button-muted inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold"
-            >
-              Abrir horaria
-            </Link>
-          </div>
-        </header>
-
+      <div className="relative mx-auto max-w-[1440px] px-5 pb-24 pt-4 sm:px-8 lg:px-10">
         <section className="grid min-h-[88svh] items-center gap-12 py-10 xl:grid-cols-[1.02fr,0.98fr]">
           <motion.div
             initial={{ opacity: 0, y: 24 }}

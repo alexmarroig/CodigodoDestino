@@ -1,9 +1,18 @@
 import { HoraryRequest, HoraryResponse, MapaRequest, MapaResponse } from '@/types/mapa'
 
-const EXPLICIT_API_URL = process.env.NEXT_PUBLIC_API_URL
-const API_URL_CANDIDATES = EXPLICIT_API_URL
-  ? [EXPLICIT_API_URL]
-  : ['http://127.0.0.1:8000', 'http://localhost:8000']
+const EXPLICIT_API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '')
+
+function resolveApiTargets(path: string): string[] {
+  if (EXPLICIT_API_URL) {
+    return [`${EXPLICIT_API_URL}${path}`]
+  }
+
+  if (typeof window !== 'undefined') {
+    return [`/api${path}`, 'http://127.0.0.1:8000', 'http://localhost:8000']
+  }
+
+  return ['http://127.0.0.1:8000', 'http://localhost:8000']
+}
 
 export class ApiError extends Error {
   status: number
@@ -18,13 +27,13 @@ export class ApiError extends Error {
 async function requestJson<T>(path: string, payload: unknown, fallbackMessage: string): Promise<T> {
   let response: Response | null = null
   let lastConnectionError: unknown = null
-  let lastTriedUrl = API_URL_CANDIDATES[0]
+  let lastTriedUrl = resolveApiTargets(path)[0]
 
-  for (const apiUrl of API_URL_CANDIDATES) {
+  for (const apiUrl of resolveApiTargets(path)) {
     lastTriedUrl = apiUrl
 
     try {
-      response = await fetch(`${apiUrl}${path}`, {
+      response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -42,7 +51,7 @@ async function requestJson<T>(path: string, payload: unknown, fallbackMessage: s
   if (!response) {
     if (lastConnectionError instanceof TypeError) {
       throw new ApiError(
-        `Nao consegui conectar com a API em ${lastTriedUrl}. Verifique se o backend FastAPI esta rodando e se o CORS permite http://localhost:3000.`,
+        `Nao consegui conectar com a API em ${lastTriedUrl}. Verifique se o backend FastAPI esta rodando ou se BACKEND_URL esta configurado no Vercel.`,
         0,
       )
     }

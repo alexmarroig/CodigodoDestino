@@ -65,6 +65,8 @@ def test_mapa_endpoint_keeps_compatibility(monkeypatch) -> None:
     assert "life_story" in data
     assert "feedback_questions" in data
     assert "user_rule_overrides" in data
+    assert "destiny_sections" in data
+    assert len(data["destiny_sections"]) == 12
     assert "proposito" in data["forecast_360"]
 
 

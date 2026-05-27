@@ -19,6 +19,11 @@ from db.models import MapRequest
 from db.session import SessionLocal, initialize_database
 from engine.adaptive_learning_engine import get_user_rule_overrides
 from engine.analysis import assess_profile_quality, build_multilayer_analysis, get_house_from_longitude
+from engine.astrology_database_bridge import (
+    apply_editorial_overrides,
+    boost_predictive_from_clusters,
+    fetch_editorial_enrichment,
+)
 from engine.events import build_domain_analysis, generate_events, summarize_events
 from engine.reality_translation import enrich_events_with_reality
 from engine.decision_motor import calculate_scores, identify_involved_person, rank_events
@@ -412,6 +417,11 @@ def run_pipeline(
     )
     narrative = generate_narrative_with_cache(prompt_data, cache)
 
+    editorial_enrichment = fetch_editorial_enrichment(normalized_payload)
+    if editorial_enrichment:
+        computed_snapshot["analysis"]["astrology_database"] = editorial_enrichment
+        boost_predictive_from_clusters(computed_snapshot["analysis"], editorial_enrichment)
+
     destiny_sections = build_destiny_sections(
         payload=normalized_payload,
         computed={
@@ -428,6 +438,7 @@ def run_pipeline(
         turning_points=computed_snapshot["turning_points"],
         reference_date=reference_date,
     )
+    destiny_sections = apply_editorial_overrides(destiny_sections, editorial_enrichment)
 
     if normalized_payload.get("user_id") and normalized_payload.get("user_context"):
         persist_user_context_memory(normalized_payload, db)
