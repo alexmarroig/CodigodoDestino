@@ -99,3 +99,49 @@ def format_time_window_label(
     if start:
         return f"a partir de {format_date_pt(start)}"
     return "nos próximos meses"
+
+
+def format_assertive_when_label(
+    window: dict[str, object] | None,
+    *,
+    reference_date: date | None = None,
+) -> str:
+    """
+    Always produces a readable, assertive label with month spelled out in full.
+
+    Examples:
+      - "janeiro de 2026, pico em 15 de janeiro"
+      - "março a abril de 2026"
+      - "pico em 5 de setembro de 2026"
+    """
+    if not window:
+        return "período ainda em formação"
+
+    start = parse_iso_date(window.get("start"))
+    end = parse_iso_date(window.get("end"))
+    peak = parse_iso_date(window.get("peak"))
+
+    if peak is None and start is None and end is None:
+        label = window.get("label")
+        return str(label) if label else "período ainda em formação"
+
+    peak_clause = f", pico em {peak.day} de {PORTUGUESE_MONTHS[peak.month]}" if peak else ""
+
+    if start and end:
+        if start.year == end.year and start.month == end.month:
+            return f"{PORTUGUESE_MONTHS[start.month]} de {start.year}{peak_clause}"
+        if start.year == end.year:
+            return (
+                f"{PORTUGUESE_MONTHS[start.month]} a "
+                f"{PORTUGUESE_MONTHS[end.month]} de {start.year}{peak_clause}"
+            )
+        return (
+            f"{PORTUGUESE_MONTHS[start.month]} de {start.year} a "
+            f"{PORTUGUESE_MONTHS[end.month]} de {end.year}{peak_clause}"
+        )
+
+    if peak:
+        return f"{peak.day} de {PORTUGUESE_MONTHS[peak.month]} de {peak.year}"
+    if start:
+        return f"a partir de {PORTUGUESE_MONTHS[start.month]} de {start.year}"
+    return "período ainda em formação"

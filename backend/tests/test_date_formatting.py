@@ -1,6 +1,11 @@
 from datetime import date
 
-from engine.date_formatting import format_date_pt, format_month_year_pt, format_time_window_label
+from engine.date_formatting import (
+    format_assertive_when_label,
+    format_date_pt,
+    format_month_year_pt,
+    format_time_window_label,
+)
 
 
 def test_format_date_pt() -> None:
@@ -22,3 +27,35 @@ def test_format_time_window_label_with_peak() -> None:
     )
     assert "18 de abril de 2026" in label
     assert "entre" in label
+
+
+def test_assertive_label_with_peak():
+    window = {"start": "2026-01-10", "end": "2026-02-05", "peak": "2026-01-15"}
+    result = format_assertive_when_label(window)
+    assert "janeiro" in result
+    assert "15 de janeiro" in result
+
+
+def test_assertive_label_no_peak():
+    window = {"start": "2026-03-01", "end": "2026-04-30"}
+    result = format_assertive_when_label(window)
+    assert "março" in result
+    assert "abril" in result
+
+
+def test_assertive_label_single_month():
+    window = {"start": "2026-06-10", "end": "2026-06-28", "peak": "2026-06-20"}
+    result = format_assertive_when_label(window)
+    assert "junho de 2026" in result
+    assert "20 de junho" in result
+
+
+def test_assertive_label_none_window():
+    result = format_assertive_when_label(None)
+    assert result == "período ainda em formação"
+
+
+def test_assertive_label_peak_only():
+    window = {"peak": "2026-09-05"}
+    result = format_assertive_when_label(window)
+    assert "5 de setembro de 2026" in result
