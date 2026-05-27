@@ -25,12 +25,8 @@ services:
         fromDatabase:
           name: astrologydatabase-db
           property: connectionString
-      - key: DATABASE_ASYNC_URL
-        fromDatabase:
-          name: astrologydatabase-db
-          property: connectionString
       - key: ALLOWED_ORIGINS
-        value: https://frontend-alpha-flame-16.vercel.app,https://codigododestino.vercel.app,https://sitecelestia.vercel.app
+        value: '["https://frontend-alpha-flame-16.vercel.app","https://codigododestino.vercel.app","https://sitecelestia.vercel.app"]'
     buildFilter:
       paths:
         - deploy/astrologydatabase/**

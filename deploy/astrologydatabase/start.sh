@@ -15,6 +15,23 @@ PY
 )"
 fi
 
+if [ -n "${ALLOWED_ORIGINS:-}" ]; then
+  export ALLOWED_ORIGINS="$(python - <<'PY'
+import json
+import os
+
+raw = os.environ.get("ALLOWED_ORIGINS", "").strip()
+if not raw:
+    print("[]")
+elif raw.startswith("["):
+    print(raw)
+else:
+    origins = [item.strip() for item in raw.split(",") if item.strip()]
+    print(json.dumps(origins))
+PY
+)"
+fi
+
 echo "Running Alembic migrations..."
 python -c "from alembic.config import main; main(argv=['upgrade', 'head'])"
 
