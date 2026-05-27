@@ -146,8 +146,12 @@ def test_predictive_insights_require_three_independent_signals() -> None:
     assert "Quando:" in detected["career"]["formatted_block"]
     assert "O que acontece:" in detected["career"]["formatted_block"]
     assert "Por que (astrologia/numerologia):" in detected["career"]["formatted_block"]
-    assert "Leitura técnica:" in detected["career"]["formatted_block"]
+    # "Leitura técnica:" header was removed from formatted_block (readability fix)
+    # Technical items are still present as numbered entries in the block
     assert "Dá para evitar?" in detected["career"]["formatted_block"]
+    # Compact human summary should exist separately
+    assert "human_summary" in detected["career"]
+    assert "Leitura técnica" not in detected["career"]["human_summary"]
     assert detected["career"]["quality_summary"]
     assert watchlist["health"]["probability_level"] == "Baixa"
     assert watchlist["health"]["certainty_level"] == "tendency"

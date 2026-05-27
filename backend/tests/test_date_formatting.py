@@ -59,3 +59,31 @@ def test_assertive_label_peak_only():
     window = {"peak": "2026-09-05"}
     result = format_assertive_when_label(window)
     assert "5 de setembro de 2026" in result
+
+
+def test_format_time_window_label_peak_today_says_hoje() -> None:
+    """Bug fix: days_to_peak == 0 must NOT produce 'nos próximos 0 dias'."""
+    today = date(2026, 5, 27)
+    label = format_time_window_label(
+        {"start": "2026-05-25", "end": "2026-05-30", "peak": "2026-05-27"},
+        reference_date=today,
+    )
+    assert "0 dias" not in label, f"Got: {label}"
+    assert "hoje" in label.lower(), f"Expected 'hoje' in: {label}"
+
+
+def test_format_time_window_label_peak_this_week_says_nesta_semana() -> None:
+    label = format_time_window_label(
+        {"start": "2026-05-25", "end": "2026-06-01", "peak": "2026-05-29"},
+        reference_date=date(2026, 5, 27),
+    )
+    assert "nesta semana" in label.lower(), f"Got: {label}"
+
+
+def test_format_time_window_label_peak_in_14_days() -> None:
+    label = format_time_window_label(
+        {"start": "2026-05-27", "end": "2026-06-15", "peak": "2026-06-10"},
+        reference_date=date(2026, 5, 27),
+    )
+    assert "próximos" in label.lower() or "dias" in label.lower(), f"Got: {label}"
+    assert "0 dias" not in label, f"Got: {label}"

@@ -16,10 +16,25 @@ const CERTAINTY_TONE: Record<DestinySection['certainty_level'], 'muted' | 'soft'
   will: 'warm',
 }
 
+/** Strip raw markdown bold markers (**text**) returning plain text. */
+function stripMarkdown(text: string): string {
+  return text.replace(/\*\*([^*]+)\*\*/g, '$1')
+}
+
+/** Render body text with newlines and stripped markdown. */
+function BodyText({ text, full }: { text: string; full: boolean }) {
+  const display = full ? text : truncateBody(text)
+  return (
+    <p className="whitespace-pre-line">{stripMarkdown(display)}</p>
+  )
+}
+
 export function DestinySectionPanel({ section }: DestinySectionPanelProps) {
   const [expanded, setExpanded] = useState(false)
-  const [showEvidence, setShowEvidence] = useState(false)
+  const [showTechnical, setShowTechnical] = useState(false)
   const tone = CERTAINTY_TONE[section.certainty_level] ?? 'soft'
+
+  const hasTechnical = !!(section.technical_detail?.trim() || section.evidence.length)
 
   return (
     <motion.article
@@ -31,13 +46,13 @@ export function DestinySectionPanel({ section }: DestinySectionPanelProps) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">
           <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">{section.title}</p>
-          <h3 className="text-2xl font-semibold sm:text-3xl">{section.summary}</h3>
+          <h3 className="text-2xl font-semibold sm:text-3xl">{stripMarkdown(section.summary)}</h3>
         </div>
         <Badge tone={tone}>{section.certainty_label}</Badge>
       </div>
 
       <div className="mt-5 space-y-4 text-sm leading-relaxed text-[var(--fg)] sm:text-base">
-        <p className="whitespace-pre-line">{expanded ? section.body : truncateBody(section.body)}</p>
+        <BodyText text={section.body} full={expanded} />
         {section.body.length > 420 ? (
           <button
             type="button"
@@ -49,21 +64,30 @@ export function DestinySectionPanel({ section }: DestinySectionPanelProps) {
         ) : null}
       </div>
 
-      {section.evidence.length ? (
+      {hasTechnical ? (
         <div className="mt-6 border-t border-[var(--line)] pt-4">
           <button
             type="button"
-            onClick={() => setShowEvidence((current) => !current)}
+            onClick={() => setShowTechnical((current) => !current)}
             className="text-xs uppercase tracking-[0.2em] text-[var(--muted-soft)] transition hover:text-[var(--fg)]"
           >
-            {showEvidence ? 'Ocultar' : 'Como o mapa chegou aqui'}
+            {showTechnical ? 'Ocultar' : 'Como o mapa chegou aqui'}
           </button>
-          {showEvidence ? (
-            <ul className="mt-3 space-y-2 text-sm text-[var(--muted)]">
-              {section.evidence.map((item) => (
-                <li key={item}>• {item}</li>
-              ))}
-            </ul>
+          {showTechnical ? (
+            <div className="mt-3 space-y-3 text-sm text-[var(--muted)]">
+              {section.technical_detail?.trim() ? (
+                <p className="whitespace-pre-line leading-relaxed">
+                  {stripMarkdown(section.technical_detail)}
+                </p>
+              ) : null}
+              {section.evidence.length ? (
+                <ul className="mt-2 space-y-1">
+                  {section.evidence.map((item) => (
+                    <li key={item}>• {stripMarkdown(item)}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           ) : null}
         </div>
       ) : null}

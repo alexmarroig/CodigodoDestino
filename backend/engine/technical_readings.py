@@ -13,6 +13,31 @@ ASPECT_NAMES_PT = {
     "sextile": "sextil",
 }
 
+PLANET_NAMES_PT = {
+    "Sun": "Sol",
+    "Moon": "Lua",
+    "Mercury": "Mercúrio",
+    "Venus": "Vênus",
+    "Mars": "Marte",
+    "Jupiter": "Júpiter",
+    "Saturn": "Saturno",
+    "Uranus": "Urano",
+    "Neptune": "Netuno",
+    "Pluto": "Plutão",
+    "Asc": "Ascendente",
+    "Mc": "Meio-Céu",
+    "Chiron": "Quíron",
+    "North Node": "Nodo Norte",
+    "South Node": "Nodo Sul",
+    "True Node": "Nodo Norte",
+    "Lilith": "Lilith",
+}
+
+
+def _translate_planet(raw: str) -> str:
+    clean = raw.replace("_", " ").strip()
+    return PLANET_NAMES_PT.get(clean, PLANET_NAMES_PT.get(clean.title(), clean.title() if clean else clean))
+
 ASPECT_MEANINGS = {
     "conjunction": "une e intensifica os dois pontos — o tema explode ou se concentra",
     "opposition": "puxa confronto, polarização ou decisão entre dois polos",
@@ -111,15 +136,20 @@ def build_signal_reading(signal: dict[str, Any], *, reference_date, category_key
 
     aspect = str(evidence.get("aspect") or "")
     aspect_pt = ASPECT_NAMES_PT.get(aspect, aspect or "aspecto")
-    planet_a = str(evidence.get("planet_a") or "").replace("_", " ").title()
-    planet_b = str(evidence.get("planet_b") or "").replace("_", " ").title()
+    planet_a = _translate_planet(str(evidence.get("planet_a") or ""))
+    planet_b = _translate_planet(str(evidence.get("planet_b") or ""))
     phase = PHASE_LABELS.get(str(evidence.get("phase") or ""), "")
     orb = evidence.get("orb")
     orb_line = f" Orbe {orb}°." if orb is not None else ""
     phase_line = f" Fase: {phase}." if phase else ""
 
     if aspect:
-        aspect_line = f"{aspect_pt} entre {planet_a} e {planet_b}.{orb_line}{phase_line}"
+        if planet_a and planet_b and planet_a.lower() != planet_b.lower():
+            aspect_line = f"{aspect_pt} entre {planet_a} e {planet_b}.{orb_line}{phase_line}"
+        elif planet_a:
+            aspect_line = f"{planet_a} em {aspect_pt}.{orb_line}{phase_line}"
+        else:
+            aspect_line = f"{aspect_pt}.{orb_line}{phase_line}"
         meaning = ASPECT_MEANINGS.get(aspect, "Ativa o tema com força no mapa.")
     else:
         aspect_line = str(signal.get("label") or "Sinal técnico")

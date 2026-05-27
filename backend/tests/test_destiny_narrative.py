@@ -143,3 +143,97 @@ def test_destiny_sections_with_acidente_fisico_subtype():
     assert isinstance(sections, list)
     section_ids = {s["id"] for s in sections}
     assert "future_events" in section_ids or "critical_cycles" in section_ids
+
+
+# ---------------------------------------------------------------------------
+# Readability quality checks
+# ---------------------------------------------------------------------------
+
+def _build_sections_with_rupture() -> list[dict]:
+    """Build sections with a rupture event for readability checks."""
+    analysis = _fixture_analysis()
+    # Add enough signals for rupture to be detected
+    analysis["signals"] = [
+        {
+            "technique": t,
+            "domain": "relacionamentos",
+            "label": f"Ruptura sinal {t}",
+            "weight": 0.8,
+            "polarity": "challenging",
+            "time_window": {"start": "2026-05-01", "end": "2026-08-01", "peak": "2026-06-15"},
+            "evidence": {"aspect": "square", "planet_a": "mars", "planet_b": "venus"},
+        }
+        for t in ["transits", "progressions", "solar_return"]
+    ]
+    return build_destiny_sections(
+        payload=_fixture_payload(),
+        computed={
+            "astrology": {"signs": {"Sun": {"sign": "Peixes"}, "Moon": {"sign": "Escorpião"}, "Asc": {"sign": "Leão"}}},
+            "numerology": {"life_path_number": 1, "personal_year": {"value": 9}},
+        },
+        analysis=analysis,
+        narrative={"text": "Ruptura e reconstrução."},
+        forecast_360={"areas_da_vida": [], "critical_periods": []},
+        timeline={"periods": []},
+        life_episodes=[],
+        turning_points=[],
+        reference_date=date(2026, 5, 27),
+    )
+
+
+def test_section_body_does_not_contain_leitura_tecnica() -> None:
+    """Readability fix: 'Leitura técnica:' must never appear in section body."""
+    sections = _build_sections_with_rupture()
+    for section in sections:
+        body = section.get("body", "")
+        assert "Leitura técnica:" not in body, (
+            f"Section '{section['id']}' body contains raw technical block.\nBody snippet: {body[:300]}"
+        )
+
+
+def test_section_body_not_same_as_summary() -> None:
+    """Readability fix: body must not simply repeat the summary."""
+    sections = _build_sections_with_rupture()
+    for section in sections:
+        summary = section.get("summary", "").strip()
+        body = section.get("body", "").strip()
+        if summary and body and len(body) > 10:
+            assert body != summary, (
+                f"Section '{section['id']}' body is identical to summary: {summary[:150]}"
+            )
+            # Body should not start with the exact same sentence as summary
+            summary_first = summary[:60]
+            assert not body.startswith(summary_first) or len(body) > len(summary_first) + 50, (
+                f"Section '{section['id']}' body starts exactly like summary: {summary_first}"
+            )
+
+
+def test_technical_detail_field_exists() -> None:
+    """Each section must have a technical_detail field (may be empty)."""
+    sections = _build_sections_with_rupture()
+    for section in sections:
+        assert "technical_detail" in section, f"Section '{section['id']}' missing technical_detail field"
+
+
+def test_family_section_does_not_include_romantic_rupture() -> None:
+    """Família section must not paste romantic rupture blocks (wrong cross-section reuse)."""
+    sections = _build_sections_with_rupture()
+    family = next((s for s in sections if s["id"] == "family"), None)
+    assert family is not None
+    # The family body should not contain the technical rupture block with romance signals
+    body = family.get("body", "")
+    # Should not contain raw technical content like "Leitura técnica:" in family body
+    assert "Leitura técnica:" not in body, f"Family body has technical block: {body[:300]}"
+
+
+def test_personality_body_does_not_repeat_summary() -> None:
+    """Personalidade body must not start with the same sentence as summary."""
+    sections = _build_sections_with_rupture()
+    personality = next((s for s in sections if s["id"] == "personality"), None)
+    assert personality is not None
+    summary = personality.get("summary", "").strip()
+    body = personality.get("body", "").strip()
+    if summary and body and len(body) > 30:
+        assert not body.startswith(summary[:50]), (
+            f"Personality body starts with summary. Summary: {summary[:100]}, Body: {body[:100]}"
+        )

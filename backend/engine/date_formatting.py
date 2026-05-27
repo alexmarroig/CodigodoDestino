@@ -76,7 +76,19 @@ def format_time_window_label(
 
     if peak and reference_date is not None:
         days_to_peak = (peak - reference_date).days
-        if 0 <= days_to_peak <= 14:
+        if days_to_peak == 0:
+            window_clause = (
+                f"entre {format_date_pt(start)} e {format_date_pt(end)}, " if (start and end) else ""
+            )
+            return f"{window_clause}pico hoje ({format_date_pt(peak)})"
+        if 1 <= days_to_peak <= 7:
+            window_clause = (
+                f"entre {format_date_pt(start or peak)} e {format_date_pt(end or peak)}, "
+                if (start and end)
+                else ""
+            )
+            return f"{window_clause}pico em {format_date_pt(peak)} (nesta semana)"
+        if 8 <= days_to_peak <= 14:
             return f"entre {format_date_pt(start or peak)} e {format_date_pt(end or peak)}, pico em {format_date_pt(peak)} (nos próximos {days_to_peak} dias)"
         if 15 <= days_to_peak <= 45:
             return f"entre {format_date_pt(start or peak)} e {format_date_pt(end or peak)}, pico em {format_date_pt(peak)} (aproximadamente em {days_to_peak} dias)"
@@ -88,6 +100,15 @@ def format_time_window_label(
             base = f"entre {start.day} e {end.day} de {PORTUGUESE_MONTHS[start.month]} de {start.year}"
             if peak:
                 return f"{base}, pico em {format_date_pt(peak)}"
+            return base
+        duration_days = (end - start).days
+        if duration_days > 180:
+            # Long cycle: use softer framing to avoid false precision
+            base = (
+                f"entre {PORTUGUESE_MONTHS[start.month]} de {start.year} "
+                f"e {PORTUGUESE_MONTHS[end.month]} de {end.year} "
+                f"(ciclo de longo prazo)"
+            )
             return base
         base = f"entre {format_date_pt(start)} e {format_date_pt(end)}"
         if peak:

@@ -121,6 +121,7 @@ def _section(
     body: str,
     certainty_level: str = "tendency",
     evidence: list[str] | None = None,
+    technical_detail: str | None = None,
 ) -> dict[str, Any]:
     return {
         "id": section_id,
@@ -130,6 +131,7 @@ def _section(
         "certainty_level": certainty_level,
         "certainty_label": CERTAINTY_LABELS.get(certainty_level, CERTAINTY_LABELS["tendency"]),
         "evidence": [polish_portuguese(str(item)) for item in (evidence or [])[:6]],
+        "technical_detail": polish_portuguese(str(technical_detail or "").strip()),
     }
 
 
@@ -138,21 +140,49 @@ def _format_date_window(window: dict[str, Any] | None, reference_date: date | No
 
 
 def _prediction_body(event: dict[str, Any], reference_date: date | None = None) -> str:
-    # Prefer enriched subtype block when available
+    """Return compact human summary (3-5 lines) for surface display."""
+    # Prefer subtype-specific human summary
+    if event.get("subtype_human_summary"):
+        return str(event["subtype_human_summary"])
+    # Prefer base human summary
+    if event.get("human_summary"):
+        return str(event["human_summary"])
+    # Fallback: build from parts without technical block
+    primary_scenario = str(
+        event.get("primary_scenario")
+        or (event.get("possible_scenarios") or [""])[0]
+        or event.get("what_is_happening")
+        or ""
+    )
+    when_label = str(
+        event.get("when_label")
+        or (event.get("time_window") or {}).get("formatted_label")
+        or "período em formação"
+    )
+    if reference_date is not None and event.get("time_window"):
+        when_label = _format_date_window(event["time_window"], reference_date) or when_label
+    avoidability = str(event.get("avoidability_summary") or "")
+    lines: list[str] = []
+    if primary_scenario:
+        lines.append(f"O que: {primary_scenario}")
+    if when_label:
+        lines.append(f"Quando: {when_label}")
+    if avoidability:
+        lines.append(f"Evitar: {avoidability}")
+    return polish_portuguese("\n".join(lines)) if lines else ""
+
+
+def _prediction_technical_detail(event: dict[str, Any]) -> str:
+    """Return full technical detail string for accordion display."""
     if event.get("subtype_key") and event.get("subtype_formatted_block"):
-        return build_enriched_prediction_block(event, event)
-    if event.get("formatted_block"):
-        return str(event["formatted_block"])
-    patched = dict(event)
-    if reference_date is not None and patched.get("time_window"):
-        patched = {
-            **patched,
-            "time_window": {
-                **dict(patched["time_window"]),
-                "formatted_label": _format_date_window(patched["time_window"], reference_date),
-            },
-        }
-    return format_prediction_block(patched)
+        base = build_enriched_prediction_block(event, event)
+    elif event.get("formatted_block"):
+        base = str(event["formatted_block"])
+    else:
+        base = format_prediction_block(event)
+    quality = str(event.get("quality_summary") or "")
+    parts = [p for p in [base, quality] if p and p not in base]
+    return polish_portuguese("\n\n".join([base] + parts[1:]) if parts else base)
 
 
 def _strongest_predictive(predictive: dict[str, Any]) -> dict[str, Any] | None:
@@ -172,16 +202,15 @@ def _build_central_reading(
     lead = _strongest_predictive(predictive)
     placeholders = _context_placeholders(user_context)
 
+    technical_detail = ""
     if lead:
         certainty = certainty_from_signal_count(lead["independent_signals"])
         when = _format_date_window(lead.get("time_window"), reference_date)
-        scenario = str(lead.get("primary_scenario") or (lead.get("possible_scenarios") or [""])[0])
         summary = f"{lead['event_type']} — {when}."
         body = _prediction_body(lead, reference_date)
         if placeholders["relationship_status"]:
             body += f"\n\nContexto atual: {placeholders['relationship_status'].capitalize()}."
-        if lead.get("impact"):
-            body += f"\n\nImpacto: {lead['impact']}"
+        technical_detail = _prediction_technical_detail(lead)
     elif narrative.get("text"):
         narrative_text = str(narrative.get("text") or "").strip()
         summary = narrative_text.split("\n\n")[0][:280]
@@ -199,8 +228,6 @@ def _build_central_reading(
     if lead:
         evidence.extend(lead.get("signals", [])[:3])
         evidence.extend(lead.get("rule_hits", [])[:2])
-        if lead.get("astro_reason"):
-            evidence.append(str(lead["astro_reason"])[:180])
 
     return _section(
         section_id="central_reading",
@@ -209,6 +236,7 @@ def _build_central_reading(
         body=body,
         certainty_level=certainty,
         evidence=evidence,
+        technical_detail=technical_detail,
     )
 
 
@@ -242,10 +270,16 @@ def _build_personality(computed: dict[str, Any], numerology: dict[str, Any]) -> 
             f"Ano pessoal {personal_year['value']} (numerologia): reforça o tema central deste ciclo de vida."
         )
 
-    body = " ".join(parts) if parts else (
-        "Sem hora exata, a leitura de personalidade fica mais genérica. "
-        "Ainda assim, o mapa mostra alguém que reage forte quando sente perda de controle emocional."
-    )
+    # Body shows only the non-summary parts to avoid duplicating the first line
+    if len(parts) > 1:
+        body = "\n\n".join(parts[1:])
+    elif parts:
+        body = parts[0]
+    else:
+        body = (
+            "Sem hora exata, a leitura de personalidade fica mais genérica. "
+            "Ainda assim, o mapa mostra alguém que reage forte quando sente perda de controle emocional."
+        )
     return _section(
         section_id="personality",
         title="Personalidade real",
@@ -270,10 +304,17 @@ def _build_core_wound(rule_hits: list[dict[str, Any]], user_context: dict[str, A
             + ", ".join(labels)
             + ". Isso não é fraqueza — é memória que ainda comanda reações."
         )
+        lines.append(
+            "Essa ferida se ativa quando você se sente ignorado, preterido ou abandonado "
+            "sem explicação. A resposta automática costuma ser fechar, atacar ou desaparecer."
+        )
     else:
         lines.append(
             "A ferida principal não grita no mapa, mas aparece quando alguém some, muda de tom "
             "ou te coloca em segundo plano sem aviso."
+        )
+        lines.append(
+            "O padrão se repete em relações próximas até você nomear o que, de fato, dói."
         )
 
     if father_rel in {"distant", "conflict", "absent"} or father == "deceased":
@@ -339,22 +380,43 @@ def _build_relationships(
 ) -> dict[str, Any]:
     placeholders = _context_placeholders(user_context)
     status = str(user_context.get("relationship_status") or "unknown")
-    rel_events = [
-        e for e in (*predictive.get("detected_events", []), *predictive.get("watchlist", []))
-        if e.get("category_key") in {"relationships", "rupture"}
-    ]
-    lead = rel_events[0] if rel_events else None
+
+    all_events = [*predictive.get("detected_events", []), *predictive.get("watchlist", [])]
+    rel_events = [e for e in all_events if e.get("category_key") == "relationships"]
+    rup_events = [e for e in all_events if e.get("category_key") == "rupture"]
+
+    # Pick the strongest event for the lead
+    combined = [*rel_events, *rup_events]
+    lead = combined[0] if combined else None
+
+    # Contradiction check: both commitment (marriage_window/commitment subtypes) and
+    # briga_grave/rupture detected → show "tensão entre aproximação e conflito"
+    has_commitment = any(
+        e.get("subtype_key") in {"compromisso", "crise_afetiva"} or e.get("category_key") == "relationships"
+        for e in all_events
+    )
+    has_rupture = any(e.get("category_key") == "rupture" for e in all_events)
+    contradictory = has_commitment and has_rupture
 
     summary = str(relationship.get("summary") or "Relações em fase de definição ou desgaste.")
-    body_parts = [summary]
+    body_parts: list[str] = []
+    technical_detail = ""
     if placeholders["relationship_status"]:
         body_parts.append(f"Hoje: {placeholders['relationship_status']}.")
+
     if lead:
         certainty = certainty_from_signal_count(lead["independent_signals"])
-        # Prepend subtype label when available for clarity
-        if lead.get("subtype_label"):
-            body_parts.append(f"**{lead['subtype_label']}**")
+        if contradictory:
+            # Surface the tension instead of picking one side
+            body_parts.append(
+                "O mapa mostra tensão entre dois movimentos: ao mesmo tempo que há forças de "
+                "aproximação e compromisso, há sinais de conflito e desgaste. "
+                "O resultado depende de como você conduz as conversas no período."
+            )
+        if lead.get("subtype_label") and not contradictory:
+            body_parts.append(str(lead["subtype_label"]) + ":")
         body_parts.append(_prediction_body(lead, reference_date))
+        technical_detail = _prediction_technical_detail(lead)
     else:
         certainty = "tendency"
         if status in {"separated", "divorced", "widowed"}:
@@ -368,13 +430,23 @@ def _build_relationships(
                 "ou aprofunda compromisso ou explode em conversa que não dá mais para adiar."
             )
 
+    # Evidence: technical items formatted as single-line strings for the accordion
+    tech_evidence = [
+        f"{item['title']} — {item['when']}"
+        for item in (lead.get("technical_items") or [])[:3]
+        if item.get("title") and item.get("when")
+    ] if lead else []
+    base_evidence = list(relationship.get("signals") or [])[:4]
+    evidence = tech_evidence or base_evidence
+
     return _section(
         section_id="relationships",
         title="Relações",
         summary=summary[:220],
         body="\n\n".join(body_parts),
         certainty_level=certainty if lead else "tendency",
-        evidence=list(relationship.get("signals") or [])[:4],
+        evidence=evidence,
+        technical_detail=technical_detail,
     )
 
 
@@ -391,10 +463,11 @@ def _build_family(
     siblings = user_context.get("has_siblings")
     adoption = user_context.get("experienced_adoption")
 
+    # Only include events specifically tagged with família domain — do NOT import
+    # romantic-rupture events from the relationships section into the family section.
     family_events = [
         e for e in predictive.get("detected_events", [])
         if "familia" in " ".join(e.get("domains", [])).lower()
-        or e.get("category_key") == "rupture"
     ]
 
     lines = []
@@ -417,13 +490,19 @@ def _build_family(
     if adoption:
         lines.append("História de adoção ou família recomposta: busca de pertencimento que nunca fica totalmente quieto.")
 
+    technical_detail = ""
     if family_events:
         lead = family_events[0]
         lines.append(_prediction_body(lead, reference_date))
+        technical_detail = _prediction_technical_detail(lead)
 
     if not lines:
         lines.append(
             "Família aparece como campo de lealdade e limite: você repete padrões até romper com o que herdou."
+        )
+        lines.append(
+            "O vínculo familiar pede atenção neste ciclo — seja por herança emocional, "
+            "por mudança de dinâmica ou pela necessidade de estabelecer limites mais claros."
         )
 
     related_names = [p.get("name") for p in related_people if p.get("relation") in {"father", "mother", "sibling", "child"}]
@@ -436,6 +515,7 @@ def _build_family(
         body="\n\n".join(lines),
         certainty_level="tendency",
         evidence=evidence,
+        technical_detail=technical_detail,
     )
 
 
@@ -447,14 +527,23 @@ def _build_money(financial: dict[str, Any], predictive: dict[str, Any], referenc
         or "recursos" in " ".join(e.get("domains", [])).lower()
     ]
     summary = str(financial.get("summary") or "Dinheiro e segurança em ajuste.")
-    body = summary
+    body_parts: list[str] = []
     if financial.get("why_now"):
-        body += f"\n\n{financial['why_now']}"
+        body_parts.append(str(financial["why_now"]))
+    technical_detail = ""
     if money_events:
         lead = money_events[0]
+        # Show subtype label as plain prefix, not raw markdown
         if lead.get("subtype_label"):
-            body += f"\n\n**{lead['subtype_label']}**"
-        body += "\n\n" + _prediction_body(lead, reference_date)
+            body_parts.append(str(lead["subtype_label"]) + ":")
+        body_parts.append(_prediction_body(lead, reference_date))
+        technical_detail = _prediction_technical_detail(lead)
+    if not body_parts:
+        body_parts.append(
+            "O campo financeiro pede atenção neste ciclo — observe gastos, renda e compromissos "
+            "antes que qualquer pressão se transforme em crise."
+        )
+    body = "\n\n".join(body_parts)
     certainty = "must" if financial.get("restructure_probability", 0) > 0.6 else "tendency"
     return _section(
         section_id="money",
@@ -463,6 +552,7 @@ def _build_money(financial: dict[str, Any], predictive: dict[str, Any], referenc
         body=body,
         certainty_level=certainty,
         evidence=list(financial.get("signals") or [])[:4],
+        technical_detail=technical_detail,
     )
 
 
@@ -582,9 +672,9 @@ def _build_life_timeline(
         items = band_entries[key]
         if not items:
             if key == "childhood":
-                lines.append(f"**{title}:** afastamento emocional precoce ou ambiente que exigiu amadurecer cedo.")
+                lines.append(f"{title}: afastamento emocional precoce ou ambiente que exigiu amadurecer cedo.")
             continue
-        lines.append(f"**{title}:**")
+        lines.append(f"{title}:")
         for item in items[:3]:
             lines.append(f"• {item}")
 
@@ -592,7 +682,7 @@ def _build_life_timeline(
         saturn_return = 27 <= current_age <= 31
         if saturn_return:
             lines.append(
-                "**Retorno de Saturno (agora):** fase inevitável de ruptura e reconstrução — "
+                "Retorno de Saturno (agora): fase inevitável de ruptura e reconstrução — "
                 "relações falsas caem, identidade antiga não cabe mais."
             )
 
@@ -622,7 +712,8 @@ def _build_future_events(predictive: dict[str, Any], reference_date: date) -> di
             certainty_level="chance",
         )
 
-    lines = []
+    lines: list[str] = []
+    technical_lines: list[str] = []
     max_certainty = "chance"
     order = {"chance": 0, "tendency": 1, "must": 2, "will": 3}
     for event in events:
@@ -635,7 +726,9 @@ def _build_future_events(predictive: dict[str, Any], reference_date: date) -> di
             if subtype_label
             else event["event_type"]
         )
-        lines.append(f"**{event_title}**\n{_prediction_body(event, reference_date)}")
+        # No raw markdown: use plain event_title as a label prefix
+        lines.append(f"{event_title}\n{_prediction_body(event, reference_date)}")
+        technical_lines.append(f"{event_title}\n{_prediction_technical_detail(event)}")
 
     lead_title = (
         f"{events[0]['event_type']} — {events[0]['subtype_label']}"
@@ -649,6 +742,7 @@ def _build_future_events(predictive: dict[str, Any], reference_date: date) -> di
         body="\n\n".join(lines),
         certainty_level=max_certainty,
         evidence=events[0].get("signals", [])[:4],
+        technical_detail="\n\n---\n\n".join(technical_lines),
     )
 
 

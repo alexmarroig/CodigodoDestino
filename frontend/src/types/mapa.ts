@@ -55,6 +55,7 @@ export type DestinySection = {
   certainty_level: DestinyCertaintyLevel
   certainty_label: string
   evidence: string[]
+  technical_detail?: string
 }
 
 export type RelatedPerson = {

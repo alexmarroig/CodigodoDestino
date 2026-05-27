@@ -369,6 +369,24 @@ def _build_context_placeholders(user_context: dict[str, Any]) -> dict[str, str]:
     return {"partner_role": partner_label}
 
 
+def _human_por_que_from_items(technical_items: list[dict[str, str]]) -> str:
+    """Build a compact, readable por_que from pre-processed technical items."""
+    parts: list[str] = []
+    for item in technical_items[:2]:
+        aspect_line = item.get("aspect_line", "").strip()
+        meaning = item.get("meaning", "").strip()
+        if "Regra" in aspect_line or not aspect_line:
+            if item.get("title"):
+                parts.append(str(item["title"]))
+            continue
+        if meaning:
+            meaning_short = meaning.split(".")[0]
+            parts.append(f"{aspect_line.rstrip('.')} — {meaning_short}")
+        else:
+            parts.append(aspect_line.rstrip("."))
+    return "; ".join(parts) if parts else ""
+
+
 def _build_human_translation(
     category_key: str,
     time_label: str,
@@ -392,6 +410,32 @@ def _build_human_translation(
     primary_scenario = scenarios[0] if scenarios else CATEGORY_CONCRETE_EVENT[category_key]
     technical_block = format_technical_block(technical_items)
     avoidability = CATEGORY_AVOIDABILITY.get(category_key, "Parcialmente evitável com escolha consciente.")
+
+    # Compact human-readable por_que (no raw codes, no duplication)
+    human_por_que = _human_por_que_from_items(technical_items)
+    por_que_line = f"Por quê: {human_por_que}\n" if human_por_que else ""
+
+    # 3-5 line human summary for surface display
+    human_summary = polish_portuguese(
+        f"O que: {primary_scenario}\n"
+        f"Quando: {time_label}\n"
+        f"{por_que_line}"
+        f"Evitar: {avoidability}"
+    )
+
+    # Full technical block for accordion (no "Leitura técnica:" header)
+    formatted_block = polish_portuguese(
+        f"Quando: {time_label}\n\n"
+        f"O que acontece: {primary_scenario}\n\n"
+        f"Por que (astrologia/numerologia): {astro_reason}\n\n"
+        f"{quality_summary}\n\n"
+        f"{technical_block}\n\n"
+        f"Dá para evitar? {avoidability}\n\n"
+        f"Impacto: {_personalize_template_text(template['impact'], placeholders)}\n\n"
+        f"Risco: {_personalize_template_text(template['risk'], placeholders)}\n\n"
+        f"Ação recomendada: {_personalize_template_text(template['action'], placeholders)}"
+    )
+
     return {
         "what_is_happening": what,
         "primary_scenario": primary_scenario,
@@ -408,17 +452,8 @@ def _build_human_translation(
         "recommended_action": _personalize_template_text(template["action"], placeholders),
         "certainty_level": certainty,
         "certainty_label": CERTAINTY_LABELS[certainty],
-        "formatted_block": polish_portuguese(
-            f"Quando: {time_label}\n\n"
-            f"O que acontece: {primary_scenario}\n\n"
-            f"Por que (astrologia/numerologia): {astro_reason}\n\n"
-            f"{quality_summary}\n\n"
-            f"Leitura técnica:\n{technical_block}\n\n"
-            f"Dá para evitar? {avoidability}\n\n"
-            f"Impacto: {_personalize_template_text(template['impact'], placeholders)}\n\n"
-            f"Risco: {_personalize_template_text(template['risk'], placeholders)}\n\n"
-            f"Ação recomendada: {_personalize_template_text(template['action'], placeholders)}"
-        ),
+        "human_summary": human_summary,
+        "formatted_block": formatted_block,
     }
 
 
@@ -434,8 +469,6 @@ def format_prediction_block(event: dict[str, Any]) -> str:
     ]
     if event.get("quality_summary"):
         parts.append(str(event["quality_summary"]))
-    if event.get("technical_block"):
-        parts.append(f"Leitura técnica:\n{event['technical_block']}")
     if event.get("avoidability_summary"):
         parts.append(f"Dá para evitar? {event['avoidability_summary']}")
     return polish_portuguese("\n\n".join(parts).strip())

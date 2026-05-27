@@ -17,8 +17,95 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from engine.date_formatting import format_assertive_when_label, format_date_pt, format_time_window_label
+from engine.astro_confirmation import (
+    classify_relationship_conflict_subtype,
+    filter_self_aspects,
+    is_self_aspect as _ac_is_self_aspect,
+)
+from engine.date_formatting import format_assertive_when_label, format_date_pt, format_time_window_label, parse_iso_date
 from engine.portuguese_text import polish_portuguese
+
+# ---------------------------------------------------------------------------
+# Planet translation and signal helpers
+# ---------------------------------------------------------------------------
+
+_PLANET_NAMES_PT: dict[str, str] = {
+    "Sun": "Sol", "Moon": "Lua", "Mercury": "Mercúrio", "Venus": "Vênus",
+    "Mars": "Marte", "Jupiter": "Júpiter", "Saturn": "Saturno",
+    "Uranus": "Urano", "Neptune": "Netuno", "Pluto": "Plutão",
+    "Asc": "Ascendente", "Mc": "Meio-Céu", "Chiron": "Quíron",
+    "North Node": "Nodo Norte", "South Node": "Nodo Sul",
+    "True Node": "Nodo Norte", "Lilith": "Lilith",
+}
+
+# Fast-moving planets whose transits qualify as "fast movers" for briga calibration
+_FAST_MOVERS: frozenset[str] = frozenset({"sun", "moon", "mercury", "venus", "mars"})
+# Planets that produce meaningful relational conflict in house 7
+_CONFLICT_PLANETS: frozenset[str] = frozenset({"mars", "saturn", "uranus", "pluto"})
+# Rule codes that independently justify briga_grave
+_CONFLICT_RULE_CODES: frozenset[str] = frozenset(
+    {"conflict_relationship", "extreme_conflict", "breakup", "sudden_break"}
+)
+# Window duration above which assertive "briga grave" language is softened
+_LONG_WINDOW_DAYS: int = 90
+
+
+def _pt_planet(raw: str) -> str:
+    """Translate a raw planet key to Portuguese."""
+    clean = raw.replace("_", " ").strip()
+    return _PLANET_NAMES_PT.get(
+        clean, _PLANET_NAMES_PT.get(clean.title(), clean.title() if clean else clean)
+    )
+
+
+def _is_self_aspect(signal: dict[str, Any]) -> bool:
+    """Return True when a signal has the same planet on both sides (e.g. Pluto/Pluto).
+
+    Generational progressions like progressed Pluto conjunct natal Pluto are not
+    individually meaningful and should be filtered from primary explanations.
+    Delegates to astro_confirmation.is_self_aspect for consistency.
+    """
+    return _ac_is_self_aspect(signal)
+
+
+def _has_fast_mover_transit(signals: list[dict[str, Any]]) -> bool:
+    """Return True if at least one transit involves a fast-moving planet."""
+    for s in signals:
+        if str(s.get("technique") or "") != "transits":
+            continue
+        pa = str((s.get("evidence") or {}).get("planet_a") or "").replace("_", " ").lower()
+        if pa in _FAST_MOVERS:
+            return True
+    return False
+
+
+def _has_conflict_planet_in_7_or_rule(
+    signals: list[dict[str, Any]],
+    rule_hits: list[dict[str, Any]],
+) -> bool:
+    """Return True when Mars/Saturn/Uranus/Pluto activates house 7, or a conflict rule fires."""
+    for s in signals:
+        ev = s.get("evidence") or {}
+        house = ev.get("transit_house") or ev.get("natal_house")
+        pa = str(ev.get("planet_a") or "").replace("_", " ").lower()
+        if house == 7 and pa in _CONFLICT_PLANETS:
+            return True
+    for h in rule_hits:
+        if str(h.get("code") or "") in _CONFLICT_RULE_CODES:
+            return True
+    return False
+
+
+def _window_duration_days(time_window: dict[str, Any] | None) -> int:
+    """Return the span in days between start and end of a time window dict."""
+    if not time_window:
+        return 0
+    start = parse_iso_date(time_window.get("start"))
+    end = parse_iso_date(time_window.get("end"))
+    if start and end:
+        return max(0, (end - start).days)
+    return 0
+
 
 # ---------------------------------------------------------------------------
 # Tense aspect helper
@@ -70,16 +157,22 @@ def _enrich_por_que(
     rule_hits: list[dict[str, Any]],
     matching_rule_codes: set[str],
 ) -> str:
-    """Build a rich por_que string: 'Técnica: aspecto planeta_a/planeta_b, Casa N (tema)'."""
+    """Build a rich por_que string: 'Técnica: aspecto planeta_a/planeta_b, Casa N (tema)'.
+
+    Self-aspects (planet A == planet B, e.g. progressed Pluto conjunct natal Pluto) are
+    excluded because generational positions carry no individual predictive meaning.
+    """
     parts: list[str] = []
 
-    for s in signals[:3]:
+    # Filter self-aspects before selecting top signals
+    meaningful_signals = [s for s in signals if not _is_self_aspect(s)]
+    for s in meaningful_signals[:3]:
         technique = _TECHNIQUE_LABELS_PT.get(str(s.get("technique") or ""), "Técnica")
         evidence = dict(s.get("evidence") or {})
         label = str(s.get("label") or "").strip()
         aspect = _ASPECT_NAMES_PT.get(str(evidence.get("aspect") or ""), "")
-        planet_a = str(evidence.get("planet_a") or "").replace("_", " ").title()
-        planet_b = str(evidence.get("planet_b") or "").replace("_", " ").title()
+        planet_a = _pt_planet(str(evidence.get("planet_a") or ""))
+        planet_b = _pt_planet(str(evidence.get("planet_b") or ""))
         house = evidence.get("transit_house") or evidence.get("natal_house")
         house_str = (
             f", Casa {house} ({_HOUSE_THEMES.get(int(house), 'vida')})"
@@ -89,7 +182,8 @@ def _enrich_por_que(
 
         if aspect and planet_a:
             piece = f"{technique}: {aspect} {planet_a}"
-            if planet_b:
+            # Only add planet_b if it's different from planet_a
+            if planet_b and planet_b.lower() != planet_a.lower():
                 piece += f"/{planet_b}"
             piece += house_str
         elif label:
@@ -101,6 +195,59 @@ def _enrich_por_que(
     for h in rule_hits[:2]:
         if str(h.get("code", "")) in matching_rule_codes and h.get("label"):
             parts.append(f"Regra: {h['label']}")
+
+    if not parts:
+        return "Convergência técnica detectada no mapa."
+    return "; ".join(parts)
+
+
+def _human_por_que_deduped(
+    signals: list[dict[str, Any]],
+    rule_hits: list[dict[str, Any]],
+    matching_rule_codes: set[str],
+) -> str:
+    """
+    Compact, deduplicated por_que for surface display:
+    - Groups identical aspect+planet patterns across techniques
+    - Shows 'X técnicas confirmam' when the same pattern repeats
+    - Max 2 patterns + 1 rule
+    """
+    meaningful = [s for s in signals if not _is_self_aspect(s)]
+
+    pattern_counts: dict[str, int] = {}
+    pattern_house: dict[str, str] = {}
+
+    for s in meaningful:
+        evidence = dict(s.get("evidence") or {})
+        label = str(s.get("label") or "").strip()
+        aspect = _ASPECT_NAMES_PT.get(str(evidence.get("aspect") or ""), "")
+        planet_a = _pt_planet(str(evidence.get("planet_a") or ""))
+        planet_b = _pt_planet(str(evidence.get("planet_b") or ""))
+        house = evidence.get("transit_house") or evidence.get("natal_house")
+
+        if aspect and planet_a:
+            p_b_part = f"/{planet_b}" if (planet_b and planet_b.lower() != planet_a.lower()) else ""
+            key = f"{aspect} {planet_a}{p_b_part}"
+        elif label:
+            key = label
+        else:
+            continue
+
+        pattern_counts[key] = pattern_counts.get(key, 0) + 1
+        if isinstance(house, int) and key not in pattern_house:
+            pattern_house[key] = f", Casa {house} ({_HOUSE_THEMES.get(house, 'vida')})"
+
+    parts: list[str] = []
+    for key, count in list(pattern_counts.items())[:2]:
+        house_str = pattern_house.get(key, "")
+        tech_note = f" ({count} técnicas confirmam)" if count > 1 else ""
+        parts.append(f"{key}{house_str}{tech_note}")
+
+    for h in rule_hits[:1]:
+        if str(h.get("code", "")) in matching_rule_codes and h.get("label"):
+            rule_label = str(h["label"])
+            if rule_label not in " ".join(parts):
+                parts.append(rule_label)
 
     if not parts:
         return "Convergência técnica detectada no mapa."
@@ -833,6 +980,23 @@ def classify_event_subtype(
         if len(hit_codes & ml_sd["rule_codes"]) > 0:
             best_key = "mudanca_local"
 
+    # Fatalism calibration (issue 9): briga_grave requires a conflict planet (Mars, Saturn,
+    # Uranus, Pluto) in a transit, OR a conflict planet in house 7, OR an explicit conflict
+    # rule code.  Sun/Moon/Mercury/Venus aspects alone (e.g. Sun square Jupiter) are not
+    # sufficient — downgrade to crise_afetiva to avoid false positives from weak signals.
+    if best_key == "briga_grave":
+        has_conflict_transit = any(
+            str((s.get("evidence") or {}).get("planet_a") or "").replace("_", " ").lower()
+            in _CONFLICT_PLANETS
+            for s in category_signals
+            if str(s.get("technique") or "") == "transits"
+        )
+        if not has_conflict_transit and not _has_conflict_planet_in_7_or_rule(
+            category_signals, rule_hits
+        ):
+            fallback = "crise_afetiva" if "crise_afetiva" in available else "afastamento"
+            best_key = fallback
+
     return best_key
 
 
@@ -863,15 +1027,24 @@ def build_subtype_text(
 
     template = sd["template"]
 
-    # Partner label
+    # Partner label — rupture subtypes use a broader default unless the user has an
+    # explicit partner role, to avoid falsely personalising "briga com sua esposa" when
+    # the Casa 7 signal is about partnership/business conflict in general.
     partner = str(user_context.get("current_partner_role") or "unknown")
+    relationship_status = str(user_context.get("relationship_status") or "unknown")
+    _rupture_subtypes = {"briga_grave", "separacao_abrupta", "afastamento", "crise_afetiva"}
+    _broad_default = (
+        "seu parceiro, sócio ou vínculo 1-a-1"
+        if subtype_key in _rupture_subtypes and partner == "unknown"
+        else "seu parceiro"
+    )
     partner_label = {
         "girlfriend": "sua namorada",
         "boyfriend": "seu namorado",
         "wife": "sua esposa",
         "husband": "seu marido",
         "partner": "seu parceiro",
-    }.get(partner, "seu parceiro")
+    }.get(partner, _broad_default)
 
     # Date placeholders from time_window
     peak_raw = time_window.get("peak") if time_window else None
@@ -899,22 +1072,36 @@ def build_subtype_text(
 
     # Fatalistic determination: needs fatalistic_threshold independent techniques
     # AND at least one matching rule code with weight ≥ 3.5
+    # AND the time window must be short (≤ 90 days) — long cycles get broad language.
     matching_rule_codes = sd["rule_codes"]
     heavy_hits = [
         h for h in rule_hits
         if str(h.get("code", "")) in matching_rule_codes
         and float(h.get("weight", 0.0)) >= 3.5
     ]
+    window_days = _window_duration_days(time_window)
+    is_long_window = window_days > _LONG_WINDOW_DAYS
     is_fatalistic = (
         independent_signals >= sd["fatalistic_threshold"]
         and len(heavy_hits) >= 1
         and _has_tense_aspect(signals)
+        and not is_long_window  # 2-year cycles don't justify assertive language
     )
 
-    # Build fields
-    what = fill(template["what"])
-    if is_fatalistic:
-        what = f"Isso vai acontecer: {what}"
+    # Build fields — long windows use softened language regardless of subtype
+    if is_long_window and subtype_key in {"briga_grave", "separacao_abrupta"}:
+        # Wide cycle: say the theme is sensitive, not that a specific fight will happen
+        long_start = format_date_pt(start_raw) if start_raw else when_range
+        long_end = format_date_pt(end_raw) if end_raw else when_range
+        what = (
+            f"Entre {long_start} e {long_end}, o tema de parceria e vínculo 1-a-1 fica sensível — "
+            f"possível tensão, briga ou momento de definição com {partner_label}. "
+            f"O ciclo é longo; o momento exato depende de outros ativadores."
+        )
+    else:
+        what = fill(template["what"])
+        if is_fatalistic:
+            what = f"Isso vai acontecer: {what}"
 
     when_note = fill(template.get("when_note", f"O período mais sensível é {when_range}."))
     scenarios = [fill(s) for s in template.get("scenarios", [])]
@@ -929,7 +1116,16 @@ def build_subtype_text(
 
     primary_scenario = scenarios[0] if scenarios else what
 
-    # Formatted block using standardized structure
+    # Compact human summary for surface display (3–5 lines, no technical repetition)
+    human_por_que = _human_por_que_deduped(signals, rule_hits, matching_rule_codes)
+    subtype_human_summary = polish_portuguese(
+        f"O que: {primary_scenario}\n"
+        f"Quando: {when_range}\n"
+        f"Por quê: {human_por_que}\n"
+        f"Evitar: {avoidability}"
+    )
+
+    # Full technical block for accordion
     formatted_block = polish_portuguese(
         f"Quando: {when_range}\n\n"
         f"O que acontece: {primary_scenario}\n\n"
@@ -950,6 +1146,7 @@ def build_subtype_text(
         "subtype_action": action,
         "subtype_avoidability": avoidability,
         "subtype_por_que": por_que,
+        "subtype_human_summary": subtype_human_summary,
         "subtype_formatted_block": formatted_block,
         "is_fatalistic": is_fatalistic,
     }
@@ -964,9 +1161,9 @@ def build_enriched_prediction_block(
     subtype_data: dict[str, Any],
 ) -> str:
     """
-    Merge the base event's formatted_block with subtype-specific details.
+    Merge base + subtype into full technical block for accordion display.
 
-    Returns a polished Portuguese prediction string.
+    Returns a polished Portuguese string with all details.
     """
     if not subtype_data:
         return str(event.get("formatted_block") or "")
@@ -984,13 +1181,11 @@ def build_enriched_prediction_block(
     action = str(subtype_data.get("subtype_action") or event.get("recommended_action") or "")
     subtype_label = str(subtype_data.get("subtype_label") or "")
 
-    parts = [f"Quando: {when}", f"O que acontece ({subtype_label}): {what}"]
+    parts: list[str] = [f"Quando: {when}", f"O que acontece ({subtype_label}): {what}"]
     if por_que:
         parts.append(f"Por que (astrologia/numerologia): {por_que}")
     if event.get("quality_summary"):
         parts.append(str(event["quality_summary"]))
-    if event.get("technical_block"):
-        parts.append(f"Leitura técnica:\n{event['technical_block']}")
     if avoidability:
         parts.append(f"Dá para evitar? {avoidability}")
     if risk:
