@@ -9,6 +9,7 @@ from engine.certainty import (
     apply_certainty_prefix,
     certainty_from_signal_count,
 )
+from engine.date_formatting import format_time_window_label, parse_iso_date
 
 CATEGORY_DEFINITIONS = [
     {
@@ -103,6 +104,23 @@ PROBABILITY_LEVELS = {
     4: "Alta",
 }
 
+TECHNIQUE_LABELS = {
+    "transits": "Trânsito",
+    "progressions": "Progressão",
+    "solar_return": "Retorno solar",
+    "solar_arc": "Arco solar",
+    "profections": "Profeccão anual",
+    "numerology": "Numerologia",
+}
+
+CATEGORY_CONCRETE_EVENT = {
+    "health": "Episódio concreto de saúde: esgotamento, queda de imunidade ou risco de acidente",
+    "career": "Mudança concreta no trabalho: promoção, troca de função, demissão ou proposta nova",
+    "relationships": "Definição afetiva concreta: compromisso, casamento, morar junto ou conversa final com {partner_role}",
+    "rupture": "Ruptura concreta: briga grave, corte emocional ou separação com {partner_role}",
+    "major_transitions": "Virada de vida concreta: mudança de carreira, cidade, status ou estrutura familiar",
+}
+
 REALITY_TEMPLATES = {
     "health": {
         "what": "Ha pressao real sobre corpo, rotina e estabilidade emocional. O periodo pode trazer doenca leve, esgotamento ou risco maior de acidente se houver imprudencia.",
@@ -194,25 +212,49 @@ def _merged_window(items: list[dict[str, Any]], reference_date: date) -> dict[st
 
 
 def _relative_timeframe(reference_date: date, window: dict[str, Any] | None) -> str:
-    if not window:
-        return "tempo ainda em formacao"
+    return format_time_window_label(window, reference_date=reference_date)
 
-    start = _parse_iso_date(window["start"]) or reference_date
-    end = _parse_iso_date(window["end"]) or start
-    days_to_start = max(0, (start - reference_date).days)
-    duration_days = max(1, (end - start).days + 1)
 
-    if days_to_start <= 7 and duration_days <= 14:
-        return "proximas 1 a 2 semanas"
-    if days_to_start <= 14 and duration_days <= 28:
-        return "proximas 2 a 4 semanas"
-    if days_to_start <= 30 and duration_days <= 60:
-        return "dentro de 1 a 2 meses"
-    if days_to_start <= 60 and duration_days <= 120:
-        return "dentro de 2 a 4 meses"
-    if days_to_start <= 120 and duration_days <= 240:
-        return "dentro de 6 a 8 meses"
-    return "ao longo dos proximos 12 a 24 meses"
+def _build_astrological_reason(
+    *,
+    event_type: str,
+    signals: list[dict[str, Any]],
+    rule_hits: list[dict[str, Any]],
+    life_events: list[dict[str, Any]],
+    techniques: list[str],
+) -> str:
+    parts: list[str] = []
+
+    for signal in _sort_signals(signals)[:3]:
+        technique = TECHNIQUE_LABELS.get(str(signal.get("technique")), str(signal.get("technique", "Sinal")))
+        label = str(signal.get("label") or "").strip()
+        if label:
+            parts.append(f"{technique}: {label}")
+
+    for hit in sorted(rule_hits, key=lambda item: -float(item.get("weight", 0.0)))[:2]:
+        label = str(hit.get("label") or "").strip()
+        if label:
+            parts.append(f"Regra interpretativa: {label}")
+
+    if life_events:
+        parts.append(f"Evento de vida previsto: {event_type.lower()}")
+
+    technique_names = [TECHNIQUE_LABELS.get(name, name) for name in techniques[:4]]
+    if technique_names and not parts:
+        return (
+            f"Convergência entre {', '.join(technique_names)} aponta {event_type.lower()}, "
+            "mas ainda sem detalhe técnico suficiente."
+        )
+
+    if not parts:
+        return f"{event_type} aparece no mapa, mas ainda sem convergência técnica forte."
+
+    convergence = ", ".join(technique_names) if technique_names else "múltiplas técnicas"
+    return (
+        f"Motivo astrológico/numerológico ({convergence}): "
+        + "; ".join(parts)
+        + "."
+    )
 
 
 def _explanation(
@@ -221,17 +263,15 @@ def _explanation(
     signals: list[dict[str, Any]],
     rule_hits: list[dict[str, Any]],
     life_events: list[dict[str, Any]],
+    techniques: list[str] | None = None,
 ) -> str:
-    lead_labels = [item["label"] for item in sorted(signals, key=lambda item: -float(item["weight"]))[:3]]
-    rule_labels = [item["label"] for item in sorted(rule_hits, key=lambda item: -float(item["weight"]))[:2]]
-    life_labels = [item["type"] for item in life_events[:1]]
-    evidence = lead_labels + rule_labels + life_labels
-    evidence = evidence[:4]
-
-    if not evidence:
-        return f"{event_type} tem sinais aparecendo, mas ainda sem forca suficiente para uma previsao firme."
-
-    return f"Ha convergencia real de sinais neste tema. Principais confirmacoes: {', '.join(evidence)}."
+    return _build_astrological_reason(
+        event_type=event_type,
+        signals=signals,
+        rule_hits=rule_hits,
+        life_events=life_events,
+        techniques=techniques or [],
+    )
 
 
 def _sort_signals(signals: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -295,10 +335,15 @@ def _build_human_translation(
     *,
     independent_signals: int,
     user_context: dict[str, Any],
+    astro_reason: str,
 ) -> dict[str, Any]:
     template = REALITY_TEMPLATES[category_key]
     placeholders = _build_context_placeholders(user_context)
     certainty = certainty_from_signal_count(independent_signals)
+    concrete_event = _personalize_template_text(
+        CATEGORY_CONCRETE_EVENT[category_key],
+        placeholders,
+    )
     what = _personalize_template_text(template["what"], placeholders)
     what = apply_certainty_prefix(what, certainty)
     scenarios = [_personalize_template_text(item, placeholders) for item in template["scenarios"][:3]]
@@ -307,8 +352,12 @@ def _build_human_translation(
             item for item in scenarios
             if "pai" not in item.lower() or "mae" in item.lower()
         ] or scenarios
+    primary_scenario = scenarios[0] if scenarios else concrete_event
     return {
         "what_is_happening": what,
+        "primary_scenario": primary_scenario,
+        "when_label": time_label,
+        "astro_reason": astro_reason,
         "what_this_may_look_like_in_real_life": scenarios[:2],
         "possible_scenarios": scenarios,
         "impact": _personalize_template_text(template["impact"], placeholders),
@@ -317,16 +366,26 @@ def _build_human_translation(
         "certainty_level": certainty,
         "certainty_label": CERTAINTY_LABELS[certainty],
         "formatted_block": (
-            f"Janela de tempo:\n{time_label}\n\n"
-            f"O que esta acontecendo:\n{what}\n\n"
-            "Como isso pode aparecer na vida real:\n"
-            + "\n".join(f"* {item}" for item in scenarios[:2])
-            + "\n\n"
-            f"Impacto:\n{template['impact']}\n\n"
-            f"Risco:\n{template['risk']}\n\n"
-            f"Acao recomendada:\n{template['action']}"
+            f"Quando: {time_label}\n\n"
+            f"O que acontece: {primary_scenario}\n\n"
+            f"Por que (astrologia/numerologia): {astro_reason}\n\n"
+            f"Impacto: {_personalize_template_text(template['impact'], placeholders)}\n\n"
+            f"Risco: {_personalize_template_text(template['risk'], placeholders)}\n\n"
+            f"Ação recomendada: {_personalize_template_text(template['action'], placeholders)}"
         ),
     }
+
+
+def format_prediction_block(event: dict[str, Any]) -> str:
+    window = dict(event.get("time_window") or {})
+    when = str(window.get("formatted_label") or window.get("label") or event.get("when_label") or "período em formação")
+    scenario = str(event.get("primary_scenario") or (event.get("possible_scenarios") or [""])[0] or event.get("what_is_happening") or "")
+    reason = str(event.get("astro_reason") or event.get("explanation") or "")
+    return (
+        f"Quando: {when}\n\n"
+        f"O que acontece: {scenario}\n\n"
+        f"Por que (astrologia/numerologia): {reason}"
+    ).strip()
 
 
 def build_predictive_insights(
@@ -387,6 +446,13 @@ def build_predictive_insights(
             ],
         ]
         time_window = _merged_window(merged_items, reference_date)
+        time_label = _relative_timeframe(reference_date, time_window)
+        if time_window is not None:
+            time_window = {
+                **time_window,
+                "label": time_label,
+                "formatted_label": time_label,
+            }
         priority_boost = _category_priority_boost(definition["key"], user_context)
         probability_score = round(
             min(
@@ -408,10 +474,8 @@ def build_predictive_insights(
             "certainty_label": CERTAINTY_LABELS[certainty_level],
             "independent_signals": independent_signals,
             "probability_score": probability_score,
-            "time_window": {
-                **(time_window or {}),
-                "label": _relative_timeframe(reference_date, time_window),
-            },
+            "time_window": time_window or {"label": time_label, "formatted_label": time_label},
+            "when_label": time_label,
             "techniques": techniques,
             "signals": [signal["label"] for signal in _sort_signals(category_signals)[:4]],
             "rule_hits": [hit["label"] for hit in category_rule_hits[:3]],
@@ -426,6 +490,7 @@ def build_predictive_insights(
                 signals=category_signals,
                 rule_hits=category_rule_hits,
                 life_events=category_life_events,
+                techniques=techniques,
             ),
             "domains": sorted(
                 {
@@ -437,9 +502,10 @@ def build_predictive_insights(
         entry.update(
             _build_human_translation(
                 definition["key"],
-                entry["time_window"]["label"],
+                time_label,
                 independent_signals=independent_signals,
                 user_context=user_context,
+                astro_reason=entry["explanation"],
             )
         )
 

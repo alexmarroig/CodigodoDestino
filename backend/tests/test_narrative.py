@@ -171,7 +171,7 @@ def test_local_fallback_handles_compact_events_without_description_field() -> No
     )
 
     assert "carreira e status" in result["text"]
-    assert "2026-04-20" in result["text"]
+    assert "20 de abril de 2026" in result["text"]
     assert result["provider"] == "local-fallback"
 
 
@@ -217,5 +217,5 @@ def test_local_fallback_prefers_forecast_360_when_available() -> None:
     )
 
     assert "Carreira" in result["text"]
-    assert "2026-06-11" in result["text"]
+    assert "11 de junho de 2026" in result["text"]
     assert "Curto prazo" in result["text"]

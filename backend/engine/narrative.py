@@ -9,6 +9,8 @@ from openai import OpenAI
 from core.cache import CacheClient
 from core.config import settings
 from core.serialization import json_dumps_text, stable_hash
+from engine.date_formatting import format_date_pt
+from engine.predictive_insights import format_prediction_block
 
 PROMPT_META = {
     "style": "analise-multicamadas",
@@ -336,20 +338,15 @@ def _build_local_fallback(
         )[:4]
         paragraphs = [str(forecast_360.get("summary", "")).strip()]
         if strongest_predictive:
+            paragraphs.append(format_prediction_block(strongest_predictive))
             paragraphs.append(
                 (
-                    f"Forecast objetivo: {strongest_predictive['event_type']} em "
-                    f"{strongest_predictive['time_window'].get('label', 'janela em formacao')}. "
-                    f"{strongest_predictive['explanation']}"
-                ).strip()
-            )
-            paragraphs.append(
-                (
-                    "Vida real: "
-                    + " ".join(strongest_predictive.get("what_this_may_look_like_in_real_life", [])[:2])
-                    + f" Impacto: {strongest_predictive.get('impact', '')} "
-                    + f"Risco: {strongest_predictive.get('risk', '')} "
-                    + f"Acao: {strongest_predictive.get('recommended_action', '')}"
+                    "Impacto: "
+                    + str(strongest_predictive.get("impact", ""))
+                    + " Risco: "
+                    + str(strongest_predictive.get("risk", ""))
+                    + " Ação: "
+                    + str(strongest_predictive.get("recommended_action", ""))
                 ).strip()
             )
 
@@ -364,7 +361,7 @@ def _build_local_fallback(
         area_lines = []
         for area in area_forecasts:
             peak_dates = list(area.get("peak_dates") or [])
-            peak_clause = f" Pico em {peak_dates[0]}." if peak_dates else ""
+            peak_clause = f" Pico em {format_date_pt(peak_dates[0])}." if peak_dates else ""
             area_lines.append(
                 f"{area['label']}: {area.get('what_tends_to_happen', area['label'])} {area.get('why_now', '')}{peak_clause}".strip()
             )
@@ -381,7 +378,7 @@ def _build_local_fallback(
 
         if turning_points:
             turning_text = "; ".join(
-                f"{item['date']} - {item['headline']}" for item in turning_points[:4]
+                f"{format_date_pt(item['date'])} - {item['headline']}" for item in turning_points[:4]
             )
             paragraphs.append(f"Datas de virada: {turning_text}.")
 
@@ -433,7 +430,7 @@ def _build_local_fallback(
 
         timing_clause = ""
         if peak_date:
-            timing_clause = f" A data-pico mais sensivel deste eixo cai em torno de {peak_date}."
+            timing_clause = f" A data-pico mais sensível deste eixo cai em torno de {format_date_pt(peak_date)}."
 
         uncertainty_clause = ""
         if uncertainties:

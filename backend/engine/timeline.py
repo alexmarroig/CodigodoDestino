@@ -6,6 +6,7 @@ from typing import Any
 
 from astro.time import convert_with_metadata
 from engine.analysis import THEME_MAP, build_multilayer_analysis
+from engine.date_formatting import format_date_pt, format_month_range_pt, format_month_year_pt
 from engine.events import build_domain_analysis, generate_events
 from engine.rules_engine import build_specialized_insights
 from numerologia.core import life_path_number, personal_year
@@ -71,7 +72,7 @@ def generate_timeline(reference_date: date) -> list[dict[str, Any]]:
         periods.append(
             {
                 "period_key": f"m{index + 1}",
-                "label": start.strftime("%Y-%m"),
+                "label": format_month_year_pt(start),
                 "granularity": "month",
                 "horizon": "short" if index < 3 else "mid",
                 "start": start,
@@ -85,7 +86,7 @@ def generate_timeline(reference_date: date) -> list[dict[str, Any]]:
         periods.append(
             {
                 "period_key": f"q{index + 1}",
-                "label": f"{start.strftime('%Y-%m')} -> {(next_start - timedelta(days=1)).strftime('%Y-%m')}",
+                "label": format_month_range_pt(start, next_start - timedelta(days=1)),
                 "granularity": "quarter",
                 "horizon": "long",
                 "start": start,
@@ -139,8 +140,8 @@ def _dedupe_strings(values: list[str], limit: int = 6) -> list[str]:
 def _build_house_summary(house: int, domain_label: str, status: str, label: str) -> str:
     base = HOUSE_LABELS[house]
     if status == "active":
-        return f"{base} entra em fase forte durante {label}, puxando {domain_label} com mais consequencia pratica."
-    return f"{base} fica em observacao durante {label}, com sinais parciais em {domain_label}."
+        return f"{base} entra em fase forte em {label}, puxando {domain_label} com consequência prática."
+    return f"{base} fica em observação em {label}, com sinais parciais em {domain_label}."
 
 
 def _build_period_house_activity(period_domains: list[dict[str, Any]], period_label: str) -> list[dict[str, Any]]:
@@ -623,8 +624,8 @@ def _build_overview(area_forecasts: list[dict[str, Any]], turning_points: list[d
     turning = turning_points[0]["date"] if turning_points else None
     head = ", ".join(top)
     if turning:
-        return f"Os proximos meses concentram movimento em {head}, com virada mais sensivel em torno de {turning}."
-    return f"Os proximos meses concentram movimento em {head}, exigindo leitura por etapas e nao por um unico evento."
+        return f"Os próximos meses concentram movimento em {head}, com virada mais sensível em torno de {format_date_pt(turning)}."
+    return f"Os próximos meses concentram movimento em {head}, exigindo leitura por etapas e não por um único evento."
 
 
 def _build_timeline_horizon_summary(
@@ -703,8 +704,9 @@ def inject_exact_timing_into_forecast(
                 "probability": min(0.97, round((float(event["weight"]) / 5.0), 2)),
                 "headline": f"{event['label']} atinge pico exato",
                 "summary": (
-                    f"Janela entre {event['time_window']['start']} e {event['time_window']['end']}, "
-                    f"com pico em {event['time_window']['peak']}."
+                    f"Janela entre {format_date_pt(event['time_window']['start'])} e "
+                    f"{format_date_pt(event['time_window']['end'])}, "
+                    f"com pico em {format_date_pt(event['time_window']['peak'])}."
                 ),
             }
         )

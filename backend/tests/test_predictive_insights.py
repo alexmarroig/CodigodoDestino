@@ -132,14 +132,16 @@ def test_predictive_insights_require_three_independent_signals() -> None:
     assert detected["career"]["independent_signals"] == 4
     assert detected["career"]["what_is_happening"].startswith("Isso vai acontecer")
     assert detected["career"]["time_window"]["label"]
-    assert "convergencia" in detected["career"]["explanation"].lower()
+    assert "Motivo astrológico" in detected["career"]["explanation"]
     assert detected["career"]["what_is_happening"]
     assert len(detected["career"]["what_this_may_look_like_in_real_life"]) >= 2
     assert len(detected["career"]["possible_scenarios"]) >= 2
     assert detected["career"]["impact"]
     assert detected["career"]["risk"]
     assert detected["career"]["recommended_action"]
-    assert "Janela de tempo:" in detected["career"]["formatted_block"]
+    assert "Quando:" in detected["career"]["formatted_block"]
+    assert "O que acontece:" in detected["career"]["formatted_block"]
+    assert "Por que (astrologia/numerologia):" in detected["career"]["formatted_block"]
     assert watchlist["health"]["probability_level"] == "Baixa"
     assert watchlist["health"]["certainty_level"] == "tendency"
     assert watchlist["health"]["independent_signals"] == 2

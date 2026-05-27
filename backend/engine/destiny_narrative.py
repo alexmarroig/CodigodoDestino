@@ -4,7 +4,8 @@ from datetime import date, datetime
 from typing import Any
 
 from engine.certainty import CERTAINTY_LABELS, apply_certainty_prefix, certainty_from_signal_count
-from engine.predictive_insights import build_predictive_insights
+from engine.date_formatting import format_date_pt, format_time_window_label
+from engine.predictive_insights import build_predictive_insights, format_prediction_block
 
 SECTION_DEFINITIONS = [
     {"id": "central_reading", "title": "Leitura central", "order": 1},
@@ -130,19 +131,23 @@ def _section(
     }
 
 
-def _format_date_window(window: dict[str, Any] | None) -> str:
-    if not window:
-        return "em janela ainda em formação"
-    start = window.get("start")
-    end = window.get("end")
-    label = window.get("label")
-    if label:
-        return str(label)
-    if start and end:
-        return f"entre {start} e {end}"
-    if start:
-        return f"a partir de {start}"
-    return "nos próximos meses"
+def _format_date_window(window: dict[str, Any] | None, reference_date: date | None = None) -> str:
+    return format_time_window_label(window, reference_date=reference_date)
+
+
+def _prediction_body(event: dict[str, Any], reference_date: date | None = None) -> str:
+    if event.get("formatted_block"):
+        return str(event["formatted_block"])
+    patched = dict(event)
+    if reference_date is not None and patched.get("time_window"):
+        patched = {
+            **patched,
+            "time_window": {
+                **dict(patched["time_window"]),
+                "formatted_label": _format_date_window(patched["time_window"], reference_date),
+            },
+        }
+    return format_prediction_block(patched)
 
 
 def _strongest_predictive(predictive: dict[str, Any]) -> dict[str, Any] | None:
@@ -157,26 +162,26 @@ def _build_central_reading(
     narrative: dict[str, Any],
     predictive: dict[str, Any],
     user_context: dict[str, Any],
+    reference_date: date,
 ) -> dict[str, Any]:
     lead = _strongest_predictive(predictive)
-    narrative_text = str(narrative.get("text") or "").strip()
     placeholders = _context_placeholders(user_context)
 
-    if narrative_text:
+    if lead:
+        certainty = certainty_from_signal_count(lead["independent_signals"])
+        when = _format_date_window(lead.get("time_window"), reference_date)
+        scenario = str(lead.get("primary_scenario") or (lead.get("possible_scenarios") or [""])[0])
+        summary = f"{lead['event_type']} — {when}."
+        body = _prediction_body(lead, reference_date)
+        if placeholders["relationship_status"]:
+            body += f"\n\nContexto atual: {placeholders['relationship_status'].capitalize()}."
+        if lead.get("impact"):
+            body += f"\n\nImpacto: {lead['impact']}"
+    elif narrative.get("text"):
+        narrative_text = str(narrative.get("text") or "").strip()
         summary = narrative_text.split("\n\n")[0][:280]
         body = narrative_text[:1800]
-        certainty = certainty_from_signal_count(lead["independent_signals"]) if lead else "tendency"
-    elif lead:
-        certainty = certainty_from_signal_count(lead["independent_signals"])
-        window = _format_date_window(lead.get("time_window"))
-        summary = (
-            f"Seu mapa aponta {lead['event_type'].lower()} {window}. "
-            f"{placeholders['relationship_status'].capitalize()}."
-        )
-        body = apply_certainty_prefix(lead.get("what_is_happening", ""), certainty)
-        scenarios = lead.get("what_this_may_look_like_in_real_life") or []
-        if scenarios:
-            body += "\n\n" + "\n".join(f"• {item}" for item in scenarios[:2])
+        certainty = "tendency"
     else:
         summary = "O mapa ainda não fecha um eixo dominante com força total."
         body = (
@@ -189,6 +194,8 @@ def _build_central_reading(
     if lead:
         evidence.extend(lead.get("signals", [])[:3])
         evidence.extend(lead.get("rule_hits", [])[:2])
+        if lead.get("astro_reason"):
+            evidence.append(str(lead["astro_reason"])[:180])
 
     return _section(
         section_id="central_reading",
@@ -207,15 +214,28 @@ def _build_personality(computed: dict[str, Any], numerology: dict[str, Any]) -> 
 
     parts = []
     if sun:
-        parts.append(f"Você se apresenta ao mundo com postura de {sun}: precisa ser visto do seu jeito.")
+        parts.append(
+            f"Sol em {sun} (astrologia): você se apresenta com essa postura e precisa ser visto do seu jeito."
+        )
     if moon:
-        parts.append(f"Por dentro, a reação emocional vem de {moon}: sensível a abandono, controle ou excesso de exigência.")
+        parts.append(
+            f"Lua em {moon} (astrologia): por dentro, você reage com sensibilidade a abandono, controle ou excesso de exigência."
+        )
     if asc:
-        parts.append(f"Na prática, as pessoas te leem como {asc} antes mesmo de te conhecer de verdade.")
+        parts.append(
+            f"Ascendente em {asc} (astrologia): na prática, as pessoas te leem assim antes de te conhecer de verdade."
+        )
 
     life_path = numerology.get("life_path_number")
+    personal_year = dict(numerology.get("personal_year") or {})
     if life_path:
-        parts.append(f"O caminho de vida {life_path} puxa repetição de padrão até você assumir o que não quer mais repetir.")
+        parts.append(
+            f"Caminho de vida {life_path} (numerologia): repete padrão até você assumir o que não quer mais repetir."
+        )
+    if personal_year.get("value"):
+        parts.append(
+            f"Ano pessoal {personal_year['value']} (numerologia): reforça o tema central deste ciclo de vida."
+        )
 
     body = " ".join(parts) if parts else (
         "Sem hora exata, a leitura de personalidade fica mais genérica. "
@@ -310,6 +330,7 @@ def _build_relationships(
     relationship: dict[str, Any],
     predictive: dict[str, Any],
     user_context: dict[str, Any],
+    reference_date: date,
 ) -> dict[str, Any]:
     placeholders = _context_placeholders(user_context)
     status = str(user_context.get("relationship_status") or "unknown")
@@ -325,13 +346,7 @@ def _build_relationships(
         body_parts.append(f"Hoje: {placeholders['relationship_status']}.")
     if lead:
         certainty = certainty_from_signal_count(lead["independent_signals"])
-        body_parts.append(
-            apply_certainty_prefix(
-                f"{lead['event_type']} { _format_date_window(lead.get('time_window')) }. "
-                f"{lead.get('what_is_happening', '')}",
-                certainty,
-            )
-        )
+        body_parts.append(_prediction_body(lead, reference_date))
     else:
         certainty = "tendency"
         if status in {"separated", "divorced", "widowed"}:
@@ -359,6 +374,7 @@ def _build_family(
     user_context: dict[str, Any],
     related_people: list[dict[str, Any]],
     predictive: dict[str, Any],
+    reference_date: date,
 ) -> dict[str, Any]:
     father = user_context.get("father_status")
     mother = user_context.get("mother_status")
@@ -395,12 +411,7 @@ def _build_family(
 
     if family_events:
         lead = family_events[0]
-        lines.append(
-            apply_certainty_prefix(
-                f"{lead['event_type']} {_format_date_window(lead.get('time_window'))}.",
-                certainty_from_signal_count(lead["independent_signals"]),
-            )
-        )
+        lines.append(_prediction_body(lead, reference_date))
 
     if not lines:
         lines.append(
@@ -420,7 +431,7 @@ def _build_family(
     )
 
 
-def _build_money(financial: dict[str, Any], predictive: dict[str, Any]) -> dict[str, Any]:
+def _build_money(financial: dict[str, Any], predictive: dict[str, Any], reference_date: date) -> dict[str, Any]:
     money_events = [
         e for e in predictive.get("detected_events", [])
         if e.get("category_key") in {"career", "major_transitions"}
@@ -432,10 +443,7 @@ def _build_money(financial: dict[str, Any], predictive: dict[str, Any]) -> dict[
         body += f"\n\n{financial['why_now']}"
     if money_events:
         lead = money_events[0]
-        body += "\n\n" + apply_certainty_prefix(
-            f"Pressão financeira ou mudança de patamar { _format_date_window(lead.get('time_window')) }.",
-            certainty_from_signal_count(lead["independent_signals"]),
-        )
+        body += "\n\n" + _prediction_body(lead, reference_date)
     certainty = "must" if financial.get("restructure_probability", 0) > 0.6 else "tendency"
     return _section(
         section_id="money",
@@ -450,6 +458,7 @@ def _build_money(financial: dict[str, Any], predictive: dict[str, Any]) -> dict[
 def _build_career_section(
     forecast_360: dict[str, Any],
     predictive: dict[str, Any],
+    reference_date: date,
 ) -> dict[str, Any]:
     areas = list(forecast_360.get("areas_da_vida") or [])
     career_area = next((a for a in areas if "carreira" in str(a.get("label", "")).lower()), None)
@@ -457,12 +466,14 @@ def _build_career_section(
 
     if career_area:
         summary = str(career_area.get("what_tends_to_happen") or career_area.get("label"))
-        body = f"{summary}\n\n{career_area.get('why_now', '')}".strip()
+        peak_dates = [format_date_pt(item) for item in list(career_area.get("peak_dates") or [])[:2]]
+        when_clause = f" Período mais sensível: {', '.join(peak_dates)}." if peak_dates else ""
+        body = f"{summary}\n\n{career_area.get('why_now', '')}{when_clause}".strip()
         certainty = "must" if career_area.get("status") == "active" else "tendency"
     elif career_events:
         lead = career_events[0]
         summary = lead["event_type"]
-        body = apply_certainty_prefix(lead.get("what_is_happening", ""), certainty_from_signal_count(lead["independent_signals"]))
+        body = _prediction_body(lead, reference_date)
         certainty = certainty_from_signal_count(lead["independent_signals"])
     else:
         summary = "Carreira em observação — sem virada forte fechada agora."
@@ -589,7 +600,7 @@ def _build_life_timeline(
     )
 
 
-def _build_future_events(predictive: dict[str, Any]) -> dict[str, Any]:
+def _build_future_events(predictive: dict[str, Any], reference_date: date) -> dict[str, Any]:
     events = list(predictive.get("detected_events") or [])[:5]
     if not events:
         return _section(
@@ -607,16 +618,7 @@ def _build_future_events(predictive: dict[str, Any]) -> dict[str, Any]:
         certainty = certainty_from_signal_count(event["independent_signals"])
         if order[certainty] > order[max_certainty]:
             max_certainty = certainty
-        window = _format_date_window(event.get("time_window"))
-        lines.append(
-            apply_certainty_prefix(
-                f"{event['event_type']} {window}. {event.get('what_is_happening', '')}",
-                certainty,
-            )
-        )
-        scenarios = event.get("possible_scenarios") or []
-        if scenarios:
-            lines.append(f"  → {scenarios[0]}")
+        lines.append(_prediction_body(event, reference_date))
 
     return _section(
         section_id="future_events",
@@ -638,7 +640,7 @@ def _build_critical_cycles(
 ) -> dict[str, Any]:
     lines = []
     for point in turning_points[:6]:
-        lines.append(f"• {point.get('date', '?')}: {point.get('headline', point.get('summary', 'Virada'))}")
+        lines.append(f"• {format_date_pt(point.get('date'))}: {point.get('headline', point.get('summary', 'Virada'))}")
 
     critical = list(forecast_360.get("critical_periods") or [])
     for period in critical[:3]:
@@ -668,7 +670,7 @@ def _build_critical_cycles(
     )
 
 
-def _build_conclusion(sections: list[dict[str, Any]], predictive: dict[str, Any]) -> dict[str, Any]:
+def _build_conclusion(sections: list[dict[str, Any]], predictive: dict[str, Any], reference_date: date) -> dict[str, Any]:
     lead = _strongest_predictive(predictive)
     central = next((s for s in sections if s["id"] == "central_reading"), None)
     future = next((s for s in sections if s["id"] == "future_events"), None)
@@ -677,9 +679,10 @@ def _build_conclusion(sections: list[dict[str, Any]], predictive: dict[str, Any]
     if central:
         parts.append(central["summary"])
     if lead:
+        certainty = certainty_from_signal_count(lead["independent_signals"])
         parts.append(
             f"O eixo mais forte agora: {lead['event_type']} "
-            f"{_format_date_window(lead.get('time_window'))}."
+            f"{_format_date_window(lead.get('time_window'), reference_date)}."
         )
     if future:
         parts.append(future["summary"])
@@ -730,7 +733,7 @@ def build_destiny_sections(
 
     sections: list[dict[str, Any]] = []
 
-    sections.append(_build_central_reading(narrative, predictive, user_context))
+    sections.append(_build_central_reading(narrative, predictive, user_context, reference_date))
     sections.append(_build_personality(computed, numerology))
     sections.append(_build_core_wound(list(analysis.get("rule_hits") or []), user_context))
     sections.append(_build_emotional_pattern(analysis, domain_analysis))
@@ -739,11 +742,12 @@ def build_destiny_sections(
             dict(analysis.get("relationship_analysis") or {}),
             predictive,
             user_context,
+            reference_date,
         )
     )
-    sections.append(_build_family(user_context, related_people, predictive))
-    sections.append(_build_money(dict(analysis.get("financial_analysis") or {}), predictive))
-    sections.append(_build_career_section(forecast_360, predictive))
+    sections.append(_build_family(user_context, related_people, predictive, reference_date))
+    sections.append(_build_money(dict(analysis.get("financial_analysis") or {}), predictive, reference_date))
+    sections.append(_build_career_section(forecast_360, predictive, reference_date))
     sections.append(
         _build_life_timeline(
             birth_date=birth_date,
@@ -754,7 +758,7 @@ def build_destiny_sections(
             life_episodes=life_episodes,
         )
     )
-    sections.append(_build_future_events(predictive))
+    sections.append(_build_future_events(predictive, reference_date))
     sections.append(
         _build_critical_cycles(
             birth_date=birth_date,
@@ -764,7 +768,7 @@ def build_destiny_sections(
             numerology=numerology,
         )
     )
-    sections.append(_build_conclusion(sections, predictive))
+    sections.append(_build_conclusion(sections, predictive, reference_date))
 
     for index, definition in enumerate(SECTION_DEFINITIONS):
         if index < len(sections):
