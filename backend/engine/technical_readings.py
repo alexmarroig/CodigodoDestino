@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from engine.astro_confirmation import is_self_aspect as _is_self_aspect, score_signal
 from engine.date_formatting import format_date_pt, format_time_window_label
 from engine.portuguese_text import polish_portuguese
 
@@ -199,9 +200,12 @@ def build_technical_items(
     limit: int = 4,
 ) -> list[dict[str, str]]:
     items: list[dict[str, str]] = []
+    # Filter self-aspects before sorting — same-body progressions (Pluto/Pluto etc.)
+    # carry no individual meaning and should not appear in the technical display.
+    meaningful_signals = [s for s in signals if not _is_self_aspect(s)]
     sorted_signals = sorted(
-        signals,
-        key=lambda item: (-float(item.get("weight", 0.0)), str(item.get("label", ""))),
+        meaningful_signals,
+        key=lambda item: (-score_signal(item), str(item.get("label", ""))),
     )
     for signal in sorted_signals[: max(1, limit - 1)]:
         items.append(build_signal_reading(signal, reference_date=reference_date, category_key=category_key))

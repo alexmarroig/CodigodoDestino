@@ -103,11 +103,11 @@ def format_time_window_label(
             return base
         duration_days = (end - start).days
         if duration_days > 180:
-            # Long cycle: use softer framing to avoid false precision
+            # Long cycle (>6 months): avoid specific event claims, use broad framing.
             base = (
-                f"entre {PORTUGUESE_MONTHS[start.month]} de {start.year} "
-                f"e {PORTUGUESE_MONTHS[end.month]} de {end.year} "
-                f"(ciclo de longo prazo)"
+                f"tema sensível no período de "
+                f"{PORTUGUESE_MONTHS[start.month]} de {start.year} "
+                f"a {PORTUGUESE_MONTHS[end.month]} de {end.year}"
             )
             return base
         base = f"entre {format_date_pt(start)} e {format_date_pt(end)}"
@@ -149,6 +149,13 @@ def format_assertive_when_label(
     peak_clause = f", pico em {peak.day} de {PORTUGUESE_MONTHS[peak.month]}" if peak else ""
 
     if start and end:
+        # Long cycle (>180 days): use broad framing, skip specific event claims
+        if (end - start).days > 180:
+            return (
+                f"tema sensível no período de "
+                f"{PORTUGUESE_MONTHS[start.month]} de {start.year} "
+                f"a {PORTUGUESE_MONTHS[end.month]} de {end.year}"
+            )
         if start.year == end.year and start.month == end.month:
             return f"{PORTUGUESE_MONTHS[start.month]} de {start.year}{peak_clause}"
         if start.year == end.year:

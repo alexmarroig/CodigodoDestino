@@ -1217,6 +1217,38 @@ def classify_event_subtype(
             fallback = "crise_afetiva" if "crise_afetiva" in available else "afastamento"
             best_key = fallback
 
+    # ── Confirmation-rulebook classifier override for rupture/relationships ──
+    # For relationship conflict categories, delegate to the more specific
+    # classify_relationship_conflict_subtype() from astro_confirmation.
+    if category_key in {"rupture", "relationships"}:
+        num_techniques = len({
+            str(s.get("technique") or "")
+            for s in category_signals
+            if s.get("technique")
+        })
+        if category_signals or rule_hits:
+            conflict_subtype = classify_relationship_conflict_subtype(
+                signals=category_signals,
+                rule_hits=rule_hits,
+                num_techniques=num_techniques,
+            )
+            if category_key == "rupture":
+                _CONFLICT_SUBTYPE_MAP: dict[str, str] = {
+                    "separacao_termino": "separacao_termino",
+                    "briga_forte": "briga_forte",
+                    "ciume_posse": "ciume_posse",
+                    "afastamento_emocional": "afastamento_emocional",
+                    "conversa_seria": "conversa_seria",
+                    "tensao_leve": "tensao_leve",
+                }
+                if conflict_subtype in _CONFLICT_SUBTYPE_MAP:
+                    best_key = _CONFLICT_SUBTYPE_MAP[conflict_subtype]
+            elif category_key == "relationships" and conflict_subtype == "conversa_seria":
+                # For relationships category, apply conversa_seria only when
+                # it doesn't override a stronger positive signal (commitment/filhos)
+                if best_key not in {"compromisso", "filhos"}:
+                    best_key = "conversa_seria"
+
     return best_key
 
 
@@ -1252,7 +1284,11 @@ def build_subtype_text(
     # the Casa 7 signal is about partnership/business conflict in general.
     partner = str(user_context.get("current_partner_role") or "unknown")
     relationship_status = str(user_context.get("relationship_status") or "unknown")
-    _rupture_subtypes = {"briga_grave", "separacao_abrupta", "afastamento", "crise_afetiva"}
+    _rupture_subtypes = {
+        "briga_grave", "separacao_abrupta", "afastamento", "crise_afetiva",
+        "separacao_termino", "briga_forte", "ciume_posse", "afastamento_emocional",
+        "conversa_seria", "tensao_leve",
+    }
     _broad_default = (
         "seu parceiro, sócio ou vínculo 1-a-1"
         if subtype_key in _rupture_subtypes and partner == "unknown"

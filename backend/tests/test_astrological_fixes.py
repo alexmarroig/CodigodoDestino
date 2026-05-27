@@ -259,7 +259,7 @@ def test_briga_grave_downgrade_no_fast_mover_no_conflict_rule():
 
 
 def test_briga_grave_kept_with_mars_transit():
-    """Mars transit + conflict rule should keep briga_grave."""
+    """Mars transit + conflict rule should classify as briga_forte (new specific subtype for Mars-central conflicts)."""
     signals = [
         {
             "technique": "transits",
@@ -288,8 +288,8 @@ def test_briga_grave_kept_with_mars_transit():
         life_events=[],
         user_context={},
     )
-    # Mars transit + conflict_relationship → briga_grave stays
-    assert result_key == "briga_grave", f"Expected briga_grave, got {result_key!r}"
+    # Mars transit + conflict_relationship + 2 techniques → briga_forte (more specific per confirmation rulebook)
+    assert result_key == "briga_forte", f"Expected briga_forte, got {result_key!r}"
 
 
 # ---------------------------------------------------------------------------

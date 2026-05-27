@@ -4,6 +4,7 @@ from datetime import date, datetime
 from typing import Any
 
 from engine.analysis import DOMAIN_LABELS
+from engine.astro_confirmation import filter_self_aspects, score_signal
 from engine.certainty import (
     CERTAINTY_LABELS,
     apply_certainty_prefix,
@@ -314,10 +315,12 @@ def _explanation(
 
 
 def _sort_signals(signals: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Sort signals by confirmation score (slow planets, angular houses, tight orbs rank higher).
+    Self-aspects (Pluto/Pluto etc.) bubble to the bottom since their score is 0."""
     return sorted(
         signals,
         key=lambda item: (
-            -float(item.get("weight", 0.0)),
+            -score_signal(item),
             item.get("technique", ""),
             item.get("label", ""),
         ),
@@ -540,12 +543,15 @@ def build_predictive_insights(
                 "formatted_label": time_label,
             }
         priority_boost = _category_priority_boost(definition["key"], user_context)
+        # Use confirmation-weighted signal score (filters self-aspects automatically)
+        meaningful_signals = filter_self_aspects(category_signals)
+        weighted_score_sum = sum(score_signal(s) for s in meaningful_signals[:4])
         probability_score = round(
             min(
                 0.95,
                 (
                     (independent_signals * 0.19)
-                    + (sum(float(signal["weight"]) for signal in category_signals[:4]) * 0.08)
+                    + (weighted_score_sum * 0.06)
                     + priority_boost
                 ),
             ),

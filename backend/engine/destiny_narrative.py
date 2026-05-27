@@ -372,6 +372,31 @@ def _build_emotional_pattern(
     )
 
 
+def _rel_partner_description(user_context: dict[str, Any]) -> str:
+    """Return a contextual partner-role description respecting Casa 7 breadth.
+
+    Default is 'parceiro ou vínculo 1-a-1' (which covers cônjuge, sócio, rival,
+    contrato). Only narrows to 'esposa/marido' when status + role confirm marriage.
+    """
+    status = str(user_context.get("relationship_status") or "unknown")
+    partner = str(user_context.get("current_partner_role") or "unknown")
+    specific_map = {
+        "girlfriend": "sua namorada",
+        "boyfriend": "seu namorado",
+        "wife": "sua esposa",
+        "husband": "seu marido",
+        "partner": "seu parceiro",
+    }
+    if partner in specific_map:
+        return specific_map[partner]
+    if status == "married":
+        return "seu cônjuge"
+    if status in {"dating", "engaged"}:
+        return "seu parceiro(a)"
+    # Broad default: cover all Casa 7 possibilities
+    return "seu parceiro, cônjuge, sócio ou vínculo 1-a-1"
+
+
 def _build_relationships(
     relationship: dict[str, Any],
     predictive: dict[str, Any],
@@ -389,34 +414,76 @@ def _build_relationships(
     combined = [*rel_events, *rup_events]
     lead = combined[0] if combined else None
 
-    # Contradiction check: both commitment (marriage_window/commitment subtypes) and
-    # briga_grave/rupture detected → show "tensão entre aproximação e conflito"
-    has_commitment = any(
-        e.get("subtype_key") in {"compromisso", "crise_afetiva"} or e.get("category_key") == "relationships"
+    # Contradiction check: both commitment (marriage_window/commitment) and
+    # rupture detected → show "tensão entre aproximação e conflito" OR rank and pick
+    has_commitment_subtype = any(
+        e.get("subtype_key") in {"compromisso", "filhos", "crise_afetiva"}
+        or e.get("category_key") == "relationships"
         for e in all_events
     )
     has_rupture = any(e.get("category_key") == "rupture" for e in all_events)
-    contradictory = has_commitment and has_rupture
+    contradictory = has_commitment_subtype and has_rupture
 
-    summary = str(relationship.get("summary") or "Relações em fase de definição ou desgaste.")
+    # Saturn on Casa 7 ambiguity: could be commitment test OR encerramento
+    # Detect when the lead is separacao_termino/afastamento_emocional with Saturn signals
+    saturn_h7_subtypes = {"separacao_termino", "afastamento_emocional", "afastamento"}
+    lead_subtype = str(lead.get("subtype_key") or "") if lead else ""
+    is_saturn_h7 = lead_subtype in saturn_h7_subtypes
+
+    partner_description = _rel_partner_description(user_context)
+
+    summary = str(relationship.get("summary") or "Relações em fase de definição ou teste.")
     body_parts: list[str] = []
     technical_detail = ""
+
     if placeholders["relationship_status"]:
-        body_parts.append(f"Hoje: {placeholders['relationship_status']}.")
+        body_parts.append(f"Contexto atual: {placeholders['relationship_status']}.")
 
     if lead:
         certainty = certainty_from_signal_count(lead["independent_signals"])
-        if contradictory:
-            # Surface the tension instead of picking one side
+
+        if contradictory and not is_saturn_h7:
+            # Show the tension between approach and conflict
             body_parts.append(
-                "O mapa mostra tensão entre dois movimentos: ao mesmo tempo que há forças de "
-                "aproximação e compromisso, há sinais de conflito e desgaste. "
+                "O mapa mostra tensão entre dois movimentos simultâneos: há forças de "
+                "aproximação e compromisso ao mesmo tempo que há sinais de conflito e desgaste. "
                 "O resultado depende de como você conduz as conversas no período."
             )
-        if lead.get("subtype_label") and not contradictory:
+        elif is_saturn_h7:
+            # Saturn on Casa 7: don't auto-say separation; say test or potential end
+            body_parts.append(
+                f"Saturno pressiona a área de parceria e vínculo 1-a-1 — "
+                f"isso pode significar teste de compromisso sério OU ciclo de encerramento "
+                f"com {partner_description}. O que define o desfecho é a base real do vínculo."
+            )
+
+        if lead.get("subtype_label") and not contradictory and not is_saturn_h7:
             body_parts.append(str(lead["subtype_label"]) + ":")
-        body_parts.append(_prediction_body(lead, reference_date))
+
+        # Human output: O quê / Quando / Por quê / Evitar
+        subtype_what = str(lead.get("subtype_what") or "")
+        subtype_por_que = str(lead.get("subtype_por_que") or "")
+        subtype_avoidability = str(lead.get("subtype_avoidability") or lead.get("avoidability_summary") or "")
+        when_label = str(
+            lead.get("when_label")
+            or (lead.get("time_window") or {}).get("formatted_label")
+            or "período em formação"
+        )
+        if subtype_what:
+            # Build 4-line human summary: O quê / Quando / Por quê / Evitar
+            por_que_short = subtype_por_que.split(";")[0].strip() if subtype_por_que else ""
+            human_block = polish_portuguese(
+                f"O quê: {subtype_what}\n"
+                f"Quando: {when_label}\n"
+                + (f"Por quê: {por_que_short}\n" if por_que_short else "")
+                + (f"Evitar: {subtype_avoidability}" if subtype_avoidability else "")
+            )
+            body_parts.append(human_block)
+        else:
+            body_parts.append(_prediction_body(lead, reference_date))
+
         technical_detail = _prediction_technical_detail(lead)
+
     else:
         certainty = "tendency"
         if status in {"separated", "divorced", "widowed"}:
@@ -426,8 +493,13 @@ def _build_relationships(
             )
         elif status in {"married", "engaged", "dating"}:
             body_parts.append(
-                f"A relação com {placeholders['partner_role']} entra em teste de verdade: "
-                "ou aprofunda compromisso ou explode em conversa que não dá mais para adiar."
+                f"A relação com {partner_description} entra em teste: "
+                "ou aprofunda compromisso real ou expõe conversa que não pode mais ser adiada."
+            )
+        else:
+            body_parts.append(
+                "Parcerias e vínculos 1-a-1 — cônjuge, sócio, parceiro ou rival — "
+                "entram em fase de definição ou desgaste neste ciclo."
             )
 
     # Evidence: technical items formatted as single-line strings for the accordion
@@ -443,7 +515,7 @@ def _build_relationships(
         section_id="relationships",
         title="Relações",
         summary=summary[:220],
-        body="\n\n".join(body_parts),
+        body=polish_portuguese("\n\n".join(body_parts)),
         certainty_level=certainty if lead else "tendency",
         evidence=evidence,
         technical_detail=technical_detail,
