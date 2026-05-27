@@ -107,7 +107,7 @@ function NarrativeBlock({ title, content, index }: { title: string, content: str
             className="overflow-hidden"
           >
             <div className="pt-4 text-sm leading-relaxed text-[var(--muted-soft)] italic">
-              A análise profunda revela que este movimento não é apenas circunstancial, mas um ponto de maturação necessário para sua evolução de longo prazo. O foco deve ser na integração consciente desses temas.
+              {lines.filter(l => l.startsWith('💡')).map(l => l.replace('💡', '').trim()).join(' ')}
             </div>
           </motion.div>
         )}

@@ -30,11 +30,7 @@ export function DestinyReading({ result, onRestart }: DestinyReadingProps) {
   const quality = result.profile_quality
   const confidence = result.confidence
   const sections = useMemo(() => {
-    const fromApi = [...(result.destiny_sections ?? [])].sort((a, b) => a.order - b.order)
-    if (fromApi.length >= 12) {
-      return fromApi
-    }
-    return fromApi
+    return [...(result.destiny_sections ?? [])].sort((a, b) => a.order - b.order)
   }, [result.destiny_sections])
 
   const [activeId, setActiveId] = useState(sections[0]?.id ?? 'central_reading')

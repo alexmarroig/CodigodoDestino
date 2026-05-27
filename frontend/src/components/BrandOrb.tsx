@@ -50,7 +50,7 @@ export function BrandOrb({ size = 'hero', showWordmark = false, className = '' }
             loop
             muted
             playsInline
-            preload="auto"
+            preload="metadata"
             poster="/brand/orb-poster.png"
             aria-label="Logotipo animado do Codigo do Destino"
           >

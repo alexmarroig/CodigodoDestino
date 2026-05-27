@@ -55,7 +55,7 @@ type RelatedPersonFormState = {
 const TOTAL_STEPS = 6
 
 const initialState: FormState = {
-  date: '1995-03-10',
+  date: '',
   time: '',
   timeUnknown: false,
   cityQuery: '',
@@ -201,8 +201,8 @@ export function BirthForm({ id, onSubmit, pending }: BirthFormProps) {
       return
     }
 
-    if (!values.time && !values.timeUnknown) {
-      setValidationError('Para uma leitura astrologica precisa, informe a hora do nascimento.')
+                  if (!values.time && !values.timeUnknown) {
+      setValidationError('Para uma leitura astrológica precisa, informe a hora do nascimento.')
       setStep(1)
       return
     }
@@ -286,16 +286,18 @@ export function BirthForm({ id, onSubmit, pending }: BirthFormProps) {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-3">
             <p className="text-xs uppercase tracking-[0.4em] text-[var(--muted-soft)]">Sua leitura</p>
-            <div className="flex gap-2">
+            <nav aria-label="Passos do formulário" className="flex gap-2">
               {Array.from({ length: TOTAL_STEPS }, (_, index) => index).map((index) => (
                 <span
                   key={index}
+                  role="presentation"
+                  aria-current={index === step ? 'step' : undefined}
                   className={`h-1.5 w-12 rounded-full ${
                     index <= step ? 'bg-[var(--accent)]' : 'bg-white/10'
                   }`}
                 />
               ))}
-            </div>
+            </nav>
           </div>
           <p className="text-sm text-[var(--muted)]">Seis passos para abrir a leitura.</p>
         </div>
@@ -315,7 +317,7 @@ export function BirthForm({ id, onSubmit, pending }: BirthFormProps) {
               <div className="space-y-4">
                 <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Primeiro passo</p>
                 <div className="space-y-3">
-                  <h2 className="text-4xl font-semibold leading-[0.92] sm:text-5xl">Quando voce nasceu?</h2>
+                  <h2 className="text-4xl font-semibold leading-[0.92] sm:text-5xl">Quando você nasceu?</h2>
                   <p className="max-w-2xl text-base text-[var(--muted)] sm:text-lg">
                     A data desenha o contorno da sua leitura e revela o clima maior da sua origem.
                   </p>
@@ -357,9 +359,9 @@ export function BirthForm({ id, onSubmit, pending }: BirthFormProps) {
               <div className="space-y-4">
                 <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Segundo passo</p>
                 <div className="space-y-3">
-                  <h2 className="text-4xl font-semibold leading-[0.92] sm:text-5xl">Qual foi o horario do seu nascimento?</h2>
+                  <h2 className="text-4xl font-semibold leading-[0.92] sm:text-5xl">Qual foi o horário do seu nascimento?</h2>
                   <p className="max-w-2xl text-base text-[var(--muted)] sm:text-lg">
-                    Aqui mora boa parte da precisao astrologica. Se voce souber a hora, a leitura fica muito mais fiel.
+                    Aqui mora boa parte da precisão astrológica. Se você souber a hora, a leitura fica muito mais fiel.
                   </p>
                 </div>
               </div>
@@ -374,7 +376,7 @@ export function BirthForm({ id, onSubmit, pending }: BirthFormProps) {
               </div>
 
               <div className="rounded-[24px] border border-[var(--line)] bg-white/5 px-4 py-4 text-sm text-[var(--muted)]">
-                Se voce nao souber a hora exata, ainda podemos seguir. Mas a leitura perde precisao, especialmente nas camadas mais sensiveis do mapa.
+                Se você não souber a hora exata, ainda podemos seguir. Mas a leitura perde precisão, especialmente nas camadas mais sensíveis do mapa.
               </div>
 
               <div className="flex flex-wrap gap-3">
@@ -404,7 +406,7 @@ export function BirthForm({ id, onSubmit, pending }: BirthFormProps) {
                   onClick={handleUnknownTime}
                   className="ritual-button-muted inline-flex items-center justify-center rounded-full px-6 py-3.5 text-sm font-semibold"
                 >
-                  Nao sei a hora exata
+                  Não sei a hora exata
                 </motion.button>
               </div>
             </motion.section>
@@ -422,9 +424,9 @@ export function BirthForm({ id, onSubmit, pending }: BirthFormProps) {
               <div className="space-y-4">
                 <p className="text-xs uppercase tracking-[0.34em] text-[var(--muted-soft)]">Terceiro passo</p>
                 <div className="space-y-3">
-                  <h2 className="text-4xl font-semibold leading-[0.92] sm:text-5xl">Onde voce nasceu?</h2>
+                  <h2 className="text-4xl font-semibold leading-[0.92] sm:text-5xl">Onde você nasceu?</h2>
                   <p className="max-w-2xl text-base text-[var(--muted)] sm:text-lg">
-                    Digite sua cidade e escolha a sugestao mais proxima. Assim a leitura encontra o seu ponto de origem.
+                    Digite sua cidade e escolha a sugestão mais próxima. Assim a leitura encontra o seu ponto de origem.
                   </p>
                 </div>
               </div>
@@ -448,6 +450,7 @@ export function BirthForm({ id, onSubmit, pending }: BirthFormProps) {
                       whileHover={{ y: -2 }}
                       whileTap={{ scale: 0.985 }}
                       onClick={() => handleCitySelect(city.id)}
+                      aria-pressed={values.selectedCityId === city.id}
                       className={`question-shell px-4 py-4 text-left ${
                         values.selectedCityId === city.id ? 'border-[rgba(241,212,162,0.4)] bg-white/10' : ''
                       }`}

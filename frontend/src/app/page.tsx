@@ -59,7 +59,7 @@ export default function Home() {
       if (err instanceof ApiError) {
         setError(err.message)
       } else {
-        setError('Nao foi possivel abrir a sua leitura agora. Tente novamente em instantes.')
+        setError('Não foi possível abrir a sua leitura agora. Tente novamente em instantes.')
       }
     } finally {
       setIsSubmitting(false)
@@ -116,10 +116,10 @@ export default function Home() {
               <p className="text-xs uppercase tracking-[0.42em] text-[var(--muted-soft)]">Uma leitura para o seu agora</p>
               <div className="space-y-4">
                 <h1 className="max-w-4xl text-5xl font-semibold leading-[0.88] sm:text-7xl xl:text-[6.4rem]">
-                  O seu destino agora tem forma, orbita e movimento.
+                  O seu destino agora tem forma, órbita e movimento.
                 </h1>
                 <p className="max-w-2xl text-base text-[var(--muted)] sm:text-lg">
-                  Sinais, ciclos, datas e capitulos da sua historia aparecem aqui em uma leitura mais viva e mais clara.
+                  Sinais, ciclos, datas e capítulos da sua história aparecem aqui em uma leitura mais viva e mais clara.
                 </p>
               </div>
             </div>
@@ -132,7 +132,7 @@ export default function Home() {
                 onClick={beginJourney}
                 className="ritual-button inline-flex items-center justify-center rounded-full px-7 py-3.5 text-sm font-semibold"
               >
-                Comecar
+                Começar
               </motion.button>
             </div>
 
@@ -218,15 +218,15 @@ export default function Home() {
                   Nascimento, vida hoje e histórico emocional. Depois, doze seções claras sobre o seu destino.
                 </p>
                 <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                  <motion.button
-                    type="button"
-                    whileHover={{ y: -2 }}
-                    whileTap={{ scale: 0.985 }}
-                    onClick={beginJourney}
-                    className="ritual-button inline-flex items-center justify-center rounded-full px-7 py-3.5 text-sm font-semibold"
-                  >
-                    Comecar agora
-                  </motion.button>
+              <motion.button
+                type="button"
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.985 }}
+                onClick={beginJourney}
+                className="ritual-button inline-flex items-center justify-center rounded-full px-7 py-3.5 text-sm font-semibold"
+              >
+                Começar agora
+              </motion.button>
                   <Link
                     href="/horaria"
                     className="ritual-button-muted inline-flex items-center justify-center rounded-full px-7 py-3.5 text-sm font-semibold"

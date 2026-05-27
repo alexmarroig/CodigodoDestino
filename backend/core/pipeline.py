@@ -5,6 +5,7 @@ from datetime import date, datetime, timezone
 from time import perf_counter
 from typing import Any
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from astro.aspects import calculate_aspects

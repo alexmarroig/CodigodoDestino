@@ -56,7 +56,7 @@ export function SiteNavBar() {
               <span className="truncate">Voltar para {mainSite.name}</span>
             </a>
             <p className="hidden text-[11px] uppercase tracking-[0.24em] text-[var(--muted-soft)] sm:block">
-              Leitura avancada · Codigo do Destino
+              Leitura avançada · Código do Destino
             </p>
           </div>
         </div>
@@ -79,7 +79,7 @@ export function SiteNavBar() {
 
           <Link href="/" className="min-w-0 shrink-0">
             <p className="truncate font-display text-lg font-semibold leading-none text-[var(--fg)] sm:text-xl">
-              Codigo do Destino
+              Código do Destino
             </p>
             <p className="mt-1 truncate text-[11px] uppercase tracking-[0.22em] text-[var(--muted-soft)]">
               {mainSite ? `Ferramenta do ${mainSite.name}` : 'Leitura pessoal'}
@@ -87,7 +87,7 @@ export function SiteNavBar() {
           </Link>
 
           <nav
-            aria-label="Navegacao deste app"
+            aria-label="Navegação deste app"
             className="mx-auto hidden items-center gap-1 rounded-full border border-[var(--line)] bg-[rgba(255,255,255,0.02)] p-1 md:flex"
           >
             {appLinks.map((item) => {

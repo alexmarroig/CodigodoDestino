@@ -41,6 +41,7 @@ CATEGORY_AVOIDABILITY = {
     "relationships": "Parcialmente evitável: conversa clara e limite mudam o resultado.",
     "rupture": "Parcialmente evitável: limite consciente pode frear, mas o ciclo não some.",
     "major_transitions": "Não evitável como ciclo; dá para escolher como atravessar.",
+    "finance": "Parcialmente evitável: planejamento antecipado reduz o impacto de perdas e consolida ganhos.",
 }
 
 PROBABILITY_QUALITY = {

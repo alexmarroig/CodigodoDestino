@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+const MAX_BODY_BYTES = 1024 * 1024 // 1 MB
+
 function backendBaseUrl() {
   return (
     process.env.BACKEND_URL?.replace(/\/+$/, '') ||
@@ -9,7 +11,22 @@ function backendBaseUrl() {
 }
 
 export async function POST(request: NextRequest) {
+  const contentLength = request.headers.get('content-length')
+  if (contentLength && Number(contentLength) > MAX_BODY_BYTES) {
+    return NextResponse.json(
+      { error: { message: 'Requisição excede o tamanho máximo permitido.' } },
+      { status: 413 },
+    )
+  }
+
   const body = await request.text()
+
+  if (Buffer.byteLength(body, 'utf8') > MAX_BODY_BYTES) {
+    return NextResponse.json(
+      { error: { message: 'Requisição excede o tamanho máximo permitido.' } },
+      { status: 413 },
+    )
+  }
 
   try {
     const response = await fetch(`${backendBaseUrl()}/mapa`, {
@@ -33,7 +50,7 @@ export async function POST(request: NextRequest) {
       {
         error: {
           message:
-            'Backend indisponivel. Configure BACKEND_URL no Vercel ou suba a API FastAPI localmente.',
+            'Backend indisponível. Configure BACKEND_URL no Vercel ou suba a API FastAPI localmente.',
         },
       },
       { status: 502 },

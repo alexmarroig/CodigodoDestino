@@ -5,6 +5,7 @@ from typing import Any
 
 from engine.certainty import CERTAINTY_LABELS, apply_certainty_prefix, certainty_from_signal_count
 from engine.date_formatting import format_date_pt, format_time_window_label
+from engine.event_subtypes import build_enriched_prediction_block
 from engine.portuguese_text import polish_portuguese
 from engine.predictive_insights import build_predictive_insights, format_prediction_block
 
@@ -137,6 +138,9 @@ def _format_date_window(window: dict[str, Any] | None, reference_date: date | No
 
 
 def _prediction_body(event: dict[str, Any], reference_date: date | None = None) -> str:
+    # Prefer enriched subtype block when available
+    if event.get("subtype_key") and event.get("subtype_formatted_block"):
+        return build_enriched_prediction_block(event, event)
     if event.get("formatted_block"):
         return str(event["formatted_block"])
     patched = dict(event)
@@ -347,6 +351,9 @@ def _build_relationships(
         body_parts.append(f"Hoje: {placeholders['relationship_status']}.")
     if lead:
         certainty = certainty_from_signal_count(lead["independent_signals"])
+        # Prepend subtype label when available for clarity
+        if lead.get("subtype_label"):
+            body_parts.append(f"**{lead['subtype_label']}**")
         body_parts.append(_prediction_body(lead, reference_date))
     else:
         certainty = "tendency"
@@ -433,9 +440,10 @@ def _build_family(
 
 
 def _build_money(financial: dict[str, Any], predictive: dict[str, Any], reference_date: date) -> dict[str, Any]:
+    all_events = list(predictive.get("detected_events", [])) + list(predictive.get("watchlist", []))
     money_events = [
-        e for e in predictive.get("detected_events", [])
-        if e.get("category_key") in {"career", "major_transitions"}
+        e for e in all_events
+        if e.get("category_key") in {"finance", "career", "major_transitions"}
         or "recursos" in " ".join(e.get("domains", [])).lower()
     ]
     summary = str(financial.get("summary") or "Dinheiro e segurança em ajuste.")
@@ -444,6 +452,8 @@ def _build_money(financial: dict[str, Any], predictive: dict[str, Any], referenc
         body += f"\n\n{financial['why_now']}"
     if money_events:
         lead = money_events[0]
+        if lead.get("subtype_label"):
+            body += f"\n\n**{lead['subtype_label']}**"
         body += "\n\n" + _prediction_body(lead, reference_date)
     certainty = "must" if financial.get("restructure_probability", 0) > 0.6 else "tendency"
     return _section(
@@ -619,12 +629,23 @@ def _build_future_events(predictive: dict[str, Any], reference_date: date) -> di
         certainty = certainty_from_signal_count(event["independent_signals"])
         if order[certainty] > order[max_certainty]:
             max_certainty = certainty
-        lines.append(_prediction_body(event, reference_date))
+        subtype_label = event.get("subtype_label")
+        event_title = (
+            f"{event['event_type']} — {subtype_label}"
+            if subtype_label
+            else event["event_type"]
+        )
+        lines.append(f"**{event_title}**\n{_prediction_body(event, reference_date)}")
 
+    lead_title = (
+        f"{events[0]['event_type']} — {events[0]['subtype_label']}"
+        if events[0].get("subtype_label")
+        else events[0]["event_type"]
+    )
     return _section(
         section_id="future_events",
         title="Eventos futuros",
-        summary=events[0]["event_type"],
+        summary=lead_title,
         body="\n\n".join(lines),
         certainty_level=max_certainty,
         evidence=events[0].get("signals", [])[:4],

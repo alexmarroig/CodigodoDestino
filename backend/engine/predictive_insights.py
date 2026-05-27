@@ -10,6 +10,10 @@ from engine.certainty import (
     certainty_from_signal_count,
 )
 from engine.date_formatting import format_time_window_label, parse_iso_date
+from engine.event_subtypes import (
+    build_subtype_text,
+    classify_event_subtype,
+)
 from engine.portuguese_text import polish_portuguese
 from engine.technical_readings import (
     CATEGORY_AVOIDABILITY,
@@ -102,6 +106,21 @@ CATEGORY_DEFINITIONS = [
         },
         "life_event_types": {"life_change", "career_change", "crisis"},
     },
+    {
+        "key": "finance",
+        "event_type": "Dinheiro, ganho ou perda financeira",
+        "domains": {"financeiro", "crises_recursos"},
+        "allowed_polarities": {"supportive", "challenging", "mixed"},
+        "rule_codes": {
+            "financial_gain",
+            "money_flow",
+            "financial_restriction",
+            "financial_transformation",
+            "unexpected_money",
+            "financial_loss",
+        },
+        "life_event_types": {"financial_change"},
+    },
 ]
 
 PROBABILITY_LEVELS = {
@@ -126,6 +145,7 @@ CATEGORY_CONCRETE_EVENT = {
     "relationships": "Definição afetiva concreta: compromisso, casamento, morar junto ou conversa final com {partner_role}",
     "rupture": "Ruptura concreta: briga grave, corte emocional ou separação com {partner_role}",
     "major_transitions": "Virada de vida concreta: mudança de carreira, cidade, status ou estrutura familiar",
+    "finance": "Mudança financeira concreta: entrada de dinheiro, perda de renda, aperto ou reestruturação de gastos",
 }
 
 REALITY_TEMPLATES = {
@@ -183,6 +203,17 @@ REALITY_TEMPLATES = {
         "impact": "O mapa da vida muda de verdade: direção, compromissos, dinheiro e estabilidade emocional entram em rearranjo.",
         "risk": "Se você reagir tarde, a mudança vem de forma caótica e mais cara.",
         "action": "Assuma que está em virada de vida, corte o que não sustenta mais e escolha uma direção antes que o contexto escolha por você.",
+    },
+    "finance": {
+        "what": "Há movimento concreto no campo financeiro. O período pode trazer entrada de dinheiro, aperto de renda, gasto inesperado ou reestruturação forçada de gastos.",
+        "scenarios": [
+            "Entrada de dinheiro — aumento, bônus, venda ou recebimento — melhora a situação e cobra planejamento imediato.",
+            "Aperto, corte de renda ou gasto inesperado que desequilibra o orçamento e exige contenção rápida.",
+            "Reestruturação financeira: dívida vence, investimento cobra decisão ou renda muda de fonte.",
+        ],
+        "impact": "Dinheiro, segurança e margem de decisão mudam de tamanho no mesmo bloco de tempo.",
+        "risk": "Ganho sem planejamento some. Aperto sem contenção vira dívida. Os dois exigem ação rápida.",
+        "action": "Antes de gastar qualquer entrada, defina destino. Antes do aperto virar crise, corte o supérfluo e renegocie o que der.",
     },
 }
 
@@ -308,6 +339,7 @@ def _category_priority_boost(category_key: str, user_context: dict[str, Any]) ->
         },
         "health": {},
         "career": {},
+        "finance": {},
         "major_transitions": {
             "separated": 0.15,
             "divorced": 0.15,
@@ -542,6 +574,32 @@ def build_predictive_insights(
                 quality_summary=quality_summary,
             )
         )
+
+        # Classify and attach subtype-specific text
+        subtype_key = classify_event_subtype(
+            category_key=definition["key"],
+            category_signals=category_signals,
+            rule_hits=category_rule_hits,
+            life_events=category_life_events,
+            user_context=user_context,
+        )
+        if subtype_key:
+            subtype_data = build_subtype_text(
+                subtype_key=subtype_key,
+                signals=category_signals,
+                rule_hits=category_rule_hits,
+                reference_date=reference_date,
+                user_context=user_context,
+                independent_signals=independent_signals,
+                time_window=time_window,
+            )
+            entry.update(subtype_data)
+            # Override avoidability with subtype-specific text when available
+            if subtype_data.get("subtype_avoidability"):
+                entry["avoidability_summary"] = subtype_data["subtype_avoidability"]
+            # Override formatted_block with enriched subtype version if available
+            if subtype_data.get("subtype_formatted_block"):
+                entry["subtype_formatted_block"] = subtype_data["subtype_formatted_block"]
 
         if independent_signals >= 3:
             detected_events.append(entry)

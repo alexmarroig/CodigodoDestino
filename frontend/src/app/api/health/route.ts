@@ -15,14 +15,12 @@ export async function GET() {
     return NextResponse.json({
       frontend: 'ok',
       backend: payload,
-      backend_url: backendBaseUrl(),
     })
   } catch {
     return NextResponse.json(
       {
         frontend: 'ok',
         backend: { status: 'unreachable' },
-        backend_url: backendBaseUrl(),
       },
       { status: 502 },
     )

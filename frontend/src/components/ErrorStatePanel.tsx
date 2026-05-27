@@ -32,7 +32,7 @@ export function ErrorStatePanel({
         <div className="space-y-3">
           <p className="text-xs uppercase tracking-[0.36em] text-[var(--muted-soft)]">A leitura foi interrompida</p>
           <h2 className={`${compact ? 'text-2xl' : 'text-4xl sm:text-5xl'} font-semibold leading-[0.92]`}>
-            Nao consegui terminar essa passagem agora.
+            Não consegui terminar essa passagem agora.
           </h2>
           <p className="max-w-2xl text-sm text-[var(--muted)] sm:text-base">{message}</p>
         </div>

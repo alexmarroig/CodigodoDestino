@@ -28,7 +28,7 @@ export function LoadingSkeleton() {
         </div>
 
         <p className="text-xs uppercase tracking-[0.42em] text-[var(--muted-soft)]">Leitura em andamento</p>
-        <h2 className="mt-5 text-4xl font-semibold leading-[0.92] sm:text-6xl">Analisando seu padrao...</h2>
+        <h2 className="mt-5 text-4xl font-semibold leading-[0.92] sm:text-6xl">Analisando seu padrão...</h2>
         <p className="mt-5 max-w-2xl text-base text-[var(--muted)] sm:text-lg">
           Estamos reunindo os sinais mais fortes do seu momento para abrir a sua leitura com calma.
         </p>

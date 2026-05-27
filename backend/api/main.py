@@ -8,6 +8,9 @@ from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from api.schemas import FeedbackEventRequest, HoraryRequest, LifeEventRequest, MapaRequest
@@ -24,6 +27,8 @@ from engine.horary import analyze_horary
 configure_logging()
 logger = logging.getLogger(__name__)
 
+limiter = Limiter(key_func=get_remote_address)
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -36,6 +41,9 @@ app = FastAPI(
     version=settings.app_version,
     lifespan=lifespan,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -68,6 +76,7 @@ def health() -> dict[str, str]:
 
 
 @app.post("/mapa")
+@limiter.limit("10/minute")
 def mapa(
     payload: MapaRequest,
     request: Request,

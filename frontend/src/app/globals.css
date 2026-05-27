@@ -78,8 +78,18 @@ body::before {
   }
 
   button,
-  input {
+  input,
+  select,
+  textarea {
     @apply outline-none;
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    @apply ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[var(--bg)];
+    outline: none;
   }
 
   input[type='date']::-webkit-calendar-picker-indicator {
@@ -201,6 +211,9 @@ body::before {
   }
 
   .site-nav-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
     border-radius: 999px;
     padding: 0.62rem 1rem;
     font-size: 0.82rem;
@@ -224,8 +237,10 @@ body::before {
   }
 
   .site-nav-cta {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
+    min-height: 2.75rem;
     border-radius: 999px;
     padding: 0.72rem 1.15rem;
     font-size: 0.82rem;
