@@ -86,3 +86,60 @@ def test_build_destiny_sections_returns_twelve_sections() -> None:
     assert sections[8]["id"] == "life_timeline"
     assert "Abandono" in sections[8]["body"] or "infancia" in sections[8]["body"].lower()
     assert sections[0]["certainty_level"] in {"chance", "tendency", "must", "will"}
+
+
+# ---------------------------------------------------------------------------
+# Task 13: Smoke test for acidente_fisico subtype in destiny pipeline
+# ---------------------------------------------------------------------------
+
+def _minimal_analysis_acidente_fisico() -> dict:
+    return {
+        "user_context": {},
+        "related_people": [],
+        "signals": [
+            {
+                "technique": t,
+                "domain": "saude_rotina",
+                "label": f"Marte pressão saúde {t}",
+                "weight": 0.85,
+                "polarity": "challenging",
+                "time_window": {
+                    "start": "2026-05-15",
+                    "end": "2026-07-10",
+                    "peak": "2026-06-10",
+                },
+                "evidence": {"aspect": "square", "planet_a": "mars", "planet_b": "saturn"},
+            }
+            for t in ["transits", "progressions", "solar_return"]
+        ],
+        "rule_hits": [
+            {"code": "accident_risk", "weight": 4.5, "label": "Risco físico elevado",
+             "domain": "saude_rotina"}
+        ],
+        "life_events": [],
+        "relationship_analysis": {"summary": "", "signals": []},
+        "financial_analysis": {"summary": "", "signals": []},
+        "domain_analysis": {"domains": []},
+        "life_story": {"chapters": []},
+        "predictive_insights": {},
+    }
+
+
+def test_destiny_sections_with_acidente_fisico_subtype():
+    sections = build_destiny_sections(
+        payload={"date": "1990-03-15", "user_context": {}},
+        computed={
+            "astrology": {"signs": {"Sun": {"sign": "Peixes"}, "Moon": {"sign": "Touro"}, "Asc": {"sign": "Leão"}}},
+            "numerology": {"life_path_number": 3, "personal_year": {"value": 5}},
+        },
+        analysis=_minimal_analysis_acidente_fisico(),
+        narrative={"text": "Período de atenção à saúde."},
+        forecast_360={"areas_da_vida": [], "critical_periods": []},
+        timeline={"periods": []},
+        life_episodes=[],
+        turning_points=[],
+        reference_date=date(2026, 6, 1),
+    )
+    assert isinstance(sections, list)
+    section_ids = {s["id"] for s in sections}
+    assert "future_events" in section_ids or "critical_cycles" in section_ids

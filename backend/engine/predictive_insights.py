@@ -67,6 +67,7 @@ CATEGORY_DEFINITIONS = [
             "emotional_bond",
             "marriage_window",
             "commitment",
+            "pregnancy_window",
         },
         "life_event_types": {"marriage"},
     },
@@ -289,7 +290,7 @@ def _build_astrological_reason(
 
     convergence = ", ".join(technique_names) if technique_names else "múltiplas técnicas"
     return (
-        f"Motivo astrológico/numerológico ({convergence}): "
+        f"Motivo ({convergence}): "
         + "; ".join(parts)
         + "."
     )

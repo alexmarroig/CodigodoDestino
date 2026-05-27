@@ -1,6 +1,10 @@
 from datetime import date
 
-from engine.predictive_insights import build_predictive_insights
+from engine.predictive_insights import (
+    CATEGORY_DEFINITIONS,
+    _build_astrological_reason,
+    build_predictive_insights,
+)
 
 
 def _analysis_fixture() -> dict:
@@ -132,7 +136,7 @@ def test_predictive_insights_require_three_independent_signals() -> None:
     assert detected["career"]["independent_signals"] == 4
     assert detected["career"]["what_is_happening"].startswith("Isso vai acontecer")
     assert detected["career"]["time_window"]["label"]
-    assert "Motivo astrológico" in detected["career"]["explanation"]
+    assert "Motivo (" in detected["career"]["explanation"]
     assert detected["career"]["what_is_happening"]
     assert len(detected["career"]["what_this_may_look_like_in_real_life"]) >= 2
     assert len(detected["career"]["possible_scenarios"]) >= 2
@@ -185,3 +189,113 @@ def test_predictive_insights_boosts_rupture_when_separated() -> None:
     baseline_rupture = next((item for item in baseline_events if item["category_key"] == "rupture"), None)
     if baseline_rupture:
         assert rupture["probability_score"] >= baseline_rupture["probability_score"]
+
+
+# ---------------------------------------------------------------------------
+# Task 8: pregnancy_window in CATEGORY_DEFINITIONS relationships
+# ---------------------------------------------------------------------------
+
+def test_relationships_category_includes_pregnancy_window():
+    rel_def = next(c for c in CATEGORY_DEFINITIONS if c["key"] == "relationships")
+    assert "pregnancy_window" in rel_def["rule_codes"]
+
+
+# ---------------------------------------------------------------------------
+# Task 9: _build_astrological_reason labels techniques
+# ---------------------------------------------------------------------------
+
+def test_astrological_reason_labels_numerology():
+    signals = [
+        {"technique": "numerology", "label": "Ano pessoal 8", "weight": 0.5},
+        {"technique": "transits", "label": "Júpiter trígono Lua", "weight": 0.9},
+    ]
+    result = _build_astrological_reason(
+        event_type="Emprego, carreira ou perda de trabalho",
+        signals=signals,
+        rule_hits=[],
+        life_events=[],
+        techniques=["numerology", "transits"],
+    )
+    assert "Numerologia" in result or "Trânsito" in result
+
+
+def test_astrological_reason_numerology_only():
+    signals = [
+        {"technique": "numerology", "label": "Ciclo do ano pessoal", "weight": 0.6},
+    ]
+    result = _build_astrological_reason(
+        event_type="Dinheiro, ganho ou perda financeira",
+        signals=signals,
+        rule_hits=[],
+        life_events=[],
+        techniques=["numerology"],
+    )
+    assert "Numerologia" in result
+
+
+# ---------------------------------------------------------------------------
+# Task 11: Integration test — all categories produce four-point block
+# ---------------------------------------------------------------------------
+
+def _make_analysis_for_category(cat_key: str) -> dict:
+    cat = next(c for c in CATEGORY_DEFINITIONS if c["key"] == cat_key)
+    domain = next(iter(cat["domains"]))
+    polarity = next(iter(cat["allowed_polarities"]))
+    rule_code = next(iter(cat["rule_codes"]))
+    signals = [
+        {
+            "technique": t,
+            "domain": domain,
+            "label": f"Sinal {t} para {cat_key}",
+            "weight": 0.8,
+            "polarity": polarity,
+            "time_window": {
+                "start": "2026-06-01",
+                "end": "2026-07-31",
+                "peak": "2026-06-20",
+            },
+            "evidence": {"aspect": "square", "planet_a": "mars", "planet_b": "saturn"},
+        }
+        for t in ["transits", "progressions", "solar_return"]
+    ]
+    rule_hits = [{"code": rule_code, "weight": 4.0, "label": f"Regra {rule_code}"}]
+    return {"signals": signals, "rule_hits": rule_hits, "life_events": [], "user_context": {}}
+
+
+def test_all_categories_produce_four_point_block():
+    cat_keys = ["health", "career", "relationships", "rupture", "finance", "major_transitions"]
+    ref = date(2026, 6, 1)
+    for cat_key in cat_keys:
+        analysis = _make_analysis_for_category(cat_key)
+        result = build_predictive_insights(analysis, reference_date=ref)
+        events = result["detected_events"] + result["watchlist"]
+        cat_events = [e for e in events if e["category_key"] == cat_key]
+        if not cat_events:
+            continue
+        event = cat_events[0]
+        assert event.get("when_label") or event.get("time_window"), \
+            f"{cat_key}: missing 'Quando' field"
+        assert event.get("what_is_happening") or event.get("subtype_what"), \
+            f"{cat_key}: missing 'O que' field"
+        assert event.get("explanation") or event.get("subtype_por_que"), \
+            f"{cat_key}: missing 'Por quê' field"
+        assert event.get("avoidability_summary") or event.get("subtype_avoidability"), \
+            f"{cat_key}: missing 'Dá para evitar' field"
+
+
+# ---------------------------------------------------------------------------
+# Task 12: source_technique propagated to detected event entry
+# ---------------------------------------------------------------------------
+
+def test_detected_event_has_source_technique():
+    analysis = _analysis_fixture()
+    result = build_predictive_insights(analysis, reference_date=date(2026, 5, 1))
+    events = result["detected_events"]
+    assert events, "Nenhum evento detectado — verifique a fixture"
+    for event in events:
+        if event.get("subtype_key"):
+            assert "source_technique" in event, (
+                f"Event {event['category_key']} com subtype {event['subtype_key']} "
+                "não tem source_technique"
+            )
+            assert event["source_technique"] in ("astrologia", "numerologia")
