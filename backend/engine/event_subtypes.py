@@ -372,6 +372,219 @@ SUBTYPE_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
 
     # ─────────────────────────────────────────────────────────────────────────
+    # RUPTURA ESPECÍFICA — separacao_termino / briga_forte / ciume_posse
+    #                    / afastamento_emocional / conversa_seria / tensao_leve
+    # ─────────────────────────────────────────────────────────────────────────
+
+    "separacao_termino": {
+        "label": "Separação ou término de vínculo",
+        "category": "rupture",
+        "rule_codes": {"breakup", "sudden_break", "intense_relationship", "emotional_cut", "deep_emotional_break"},
+        "priority_rule_codes": {"breakup", "deep_emotional_break"},
+        "min_techniques": 3,
+        "fatalistic_threshold": 3,
+        "avoidability": (
+            "Difícil de evitar quando Saturno, Urano ou Plutão pressionam a Casa 7 — "
+            "o ciclo quer encerramento. Dá para atravessar com dignidade e clareza."
+        ),
+        "template": {
+            "what": (
+                "O mapa indica pressão real de término ou encerramento do vínculo com "
+                "{partner_role}. Não é briga passageira: são sinais lentos que pedem definição."
+            ),
+            "when_note": (
+                "A pressão é mais intensa em {when_peak}. "
+                "Se já existe desgaste, o processo pode começar antes disso."
+            ),
+            "scenarios": [
+                "A relação com {partner_role} chega ao ponto de definição — continuar exige mudança real, ou encerrar.",
+                "Saturno ou Plutão sobre a Casa 7 cobram maturidade: vínculos que não têm base real tendem a se desfazer.",
+                "Uma conversa final define rumo com clareza — o que não serve mais é liberado.",
+            ],
+            "risk": (
+                "Ignorar os sinais de encerramento pode atrasar o processo mas não o cancela — "
+                "e a separação sem preparo é mais cara emocionalmente."
+            ),
+            "action": (
+                "Examine o que ainda sustenta o vínculo. "
+                "Se a resposta for hábito ou medo, o mapa está pedindo uma decisão honesta."
+            ),
+        },
+    },
+
+    "briga_forte": {
+        "label": "Briga forte ou confronto direto",
+        "category": "rupture",
+        "rule_codes": {"conflict_relationship", "extreme_conflict", "relationship_test"},
+        "priority_rule_codes": {"extreme_conflict", "conflict_relationship"},
+        "min_techniques": 2,
+        "fatalistic_threshold": 3,
+        "avoidability": (
+            "Parcialmente evitável: Marte não some do mapa, mas o confronto pode ser "
+            "conduzido em vez de explodir. Limite claro antes do pico reduz o dano."
+        ),
+        "template": {
+            "what": (
+                "O mapa indica briga forte com {partner_role} ou pessoa próxima. "
+                "Marte ativo gera pressão de confronto que dificilmente passa sem discussão direta."
+            ),
+            "when_note": (
+                "O confronto tem mais força em {when_peak}. "
+                "Antes disso, a tensão já está acumulando — e pode explodir em qualquer brecha."
+            ),
+            "scenarios": [
+                "Discussão direta onde tom sobe, acusações aparecem e ninguém cede facilmente.",
+                "Um ponto de atrito que existia há tempo explode no primeiro gatilho: palavras erradas, decisão unilateral.",
+                "Confronto que define limite real — pode ser necessário, mas exige condução consciente.",
+            ],
+            "risk": (
+                "Se a briga não tiver resolução, pode virar afastamento ou "
+                "abrir ferida que demora muito para cicatrizar."
+            ),
+            "action": (
+                "Escolha o momento e o tom. "
+                "Confrontar com clareza é diferente de atacar no impulso — Marte tende ao segundo."
+            ),
+        },
+    },
+
+    "ciume_posse": {
+        "label": "Ciúme, controle ou dinâmica possessiva",
+        "category": "rupture",
+        "rule_codes": {"intense_relationship", "conflict_relationship", "relationship_test", "emotional_bond"},
+        "priority_rule_codes": {"intense_relationship"},
+        "min_techniques": 2,
+        "fatalistic_threshold": 3,
+        "avoidability": (
+            "Parcialmente evitável: a dinâmica de possessividade vem de dentro, "
+            "não apenas do outro. Reconhecer isso muda o padrão."
+        ),
+        "template": {
+            "what": (
+                "O mapa ativa dinâmica de ciúme, controle ou possessividade intensa "
+                "com {partner_role} — Plutão, Marte e Lua em tensão criam campo de intensidade "
+                "que pode virar disputa de poder ou isolamento emocional."
+            ),
+            "when_note": "A intensidade é mais alta em {when_peak}.",
+            "scenarios": [
+                "Ciúme desproporcional a partir de insegurança — real ou projetada — que gera cobranças e vigilância.",
+                "Controle sutil ou explícito: quem você vê, como se posiciona, onde vai.",
+                "Dinâmica de posse onde os dois se prendem por intensidade, mesmo quando a relação não funciona mais.",
+            ],
+            "risk": (
+                "Se o padrão possessivo não for nomeado, ele se normaliza e vira "
+                "prisão emocional para os dois lados."
+            ),
+            "action": (
+                "Nomeie a dinâmica com clareza — ciúme, controle ou medo de perder. "
+                "A conversa que parece impossível é exatamente a que resolve."
+            ),
+        },
+    },
+
+    "afastamento_emocional": {
+        "label": "Afastamento emocional gradual",
+        "category": "rupture",
+        "rule_codes": {"emotional_cut", "deep_emotional_break", "relationship_block"},
+        "priority_rule_codes": {"deep_emotional_break"},
+        "min_techniques": 2,
+        "fatalistic_threshold": 3,
+        "avoidability": (
+            "Parcialmente evitável: Saturno resfria e cria distância, mas não força "
+            "separação formal. Comunicação direta ainda muda o resultado."
+        ),
+        "template": {
+            "what": (
+                "O mapa mostra afastamento emocional com {partner_role} — "
+                "Saturno ou pressão lenta sobre Vênus ou a Casa 7 cria distância que cresce "
+                "sem confronto direto. Não é briga: é esfriamento."
+            ),
+            "when_note": (
+                "O esfriamento é mais intenso em {when_peak}. "
+                "Antes disso, os sinais de distância já estão ativos."
+            ),
+            "scenarios": [
+                "A relação com {partner_role} resfria: menos presença, menos iniciativa, menos conexão real.",
+                "Saturno sobre a Casa 7 ou Vênus cobra responsabilidade — quem não se compromete vai sendo deixado para trás.",
+                "Você se fecha emocionalmente como proteção, e o outro interpreta como desinteresse.",
+            ],
+            "risk": (
+                "Se o afastamento não for nomeado, ele vira padrão permanente — "
+                "e a relação fica em modo de sobrevivência até um dos dois sair."
+            ),
+            "action": (
+                "Nomeie o que mudou antes que o silêncio vire norma. "
+                "Saturno responde a compromisso claro, não a esperança passiva."
+            ),
+        },
+    },
+
+    "conversa_seria": {
+        "label": "Conversa séria ou definição verbal",
+        "category": "rupture",
+        "rule_codes": {"relationship_test", "conflict_relationship", "relationship_block"},
+        "priority_rule_codes": set(),
+        "min_techniques": 2,
+        "fatalistic_threshold": 4,
+        "avoidability": (
+            "Evitável como conflito: Mercúrio ativo pede conversa, não briga. "
+            "A conversa que parece difícil resolve mais do que o silêncio."
+        ),
+        "template": {
+            "what": (
+                "O mapa indica necessidade de conversa séria com {partner_role} — "
+                "Mercúrio ativado aponta para definição verbal, esclarecimento ou "
+                "alinhamento de expectativas. Não é briga: é diálogo que precisa acontecer."
+            ),
+            "when_note": "O momento mais propício para a conversa é em {when_peak}.",
+            "scenarios": [
+                "Uma conversa que vinha sendo adiada chega ao ponto de não poder mais ser ignorada.",
+                "Mercúrio em tensão com Saturno ou Netuno aponta para mal-entendido que precisa de esclarecimento direto.",
+                "Alinhamento verbal sobre limites, expectativas ou decisão importante que afeta os dois.",
+            ],
+            "risk": (
+                "Se a conversa não acontecer, o mal-entendido se acumula e "
+                "vira ressentimento ou afastamento silencioso."
+            ),
+            "action": (
+                "Escolha o momento e diga o que precisa ser dito. "
+                "Clareza agora evita explosão depois."
+            ),
+        },
+    },
+
+    "tensao_leve": {
+        "label": "Tensão leve ou clima tenso passageiro",
+        "category": "rupture",
+        "rule_codes": {"relationship_test", "conflict_relationship"},
+        "priority_rule_codes": set(),
+        "min_techniques": 1,
+        "fatalistic_threshold": 5,
+        "avoidability": (
+            "Evitável: trânsito rápido sem planeta lento — a tensão passa em dias. "
+            "Não reage no impulso."
+        ),
+        "template": {
+            "what": (
+                "O mapa mostra tensão leve ou clima mais carregado com {partner_role} — "
+                "trânsito rápido que passa em poucos dias. Não é briga grave nem separação: "
+                "é irritação, desgaste ou sensibilidade elevada temporária."
+            ),
+            "when_note": "A tensão é mais perceptível em {when_peak}, mas tende a passar rapidamente.",
+            "scenarios": [
+                "Clima mais tenso do que o normal: palavras que saem erradas, irritação sem motivo claro.",
+                "Sensibilidade elevada que faz pequenos atritos parecerem maiores do que são.",
+                "Desentendimento passageiro que, se não for amplificado, não deixa rastro.",
+            ],
+            "risk": "Se você reagir no impulso durante o pico, o que seria desentendimento pode virar briga real.",
+            "action": (
+                "Aguarde o pico passar antes de tomar decisão sobre a relação. "
+                "Trânsito rápido não define o vínculo."
+            ),
+        },
+    },
+
+    # ─────────────────────────────────────────────────────────────────────────
     # SAÚDE — doenca_leve / crise_saude / cronico
     # ─────────────────────────────────────────────────────────────────────────
     "doenca_leve": {
@@ -858,7 +1071,14 @@ SUBTYPE_DEFINITIONS: dict[str, dict[str, Any]] = {
 
 # Evaluation priority: higher in list = preferred when scores are equal
 _SUBTYPE_PRIORITY_ORDER: list[str] = [
-    # rupture (most specific first)
+    # rupture — confirmation-rulebook specific subtypes (most specific first)
+    "separacao_termino",
+    "briga_forte",
+    "ciume_posse",
+    "afastamento_emocional",
+    "conversa_seria",
+    "tensao_leve",
+    # rupture — legacy generic subtypes (kept for backward compat)
     "separacao_abrupta",
     "afastamento",
     "briga_grave",
