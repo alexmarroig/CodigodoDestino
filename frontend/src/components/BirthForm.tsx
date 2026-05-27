@@ -253,9 +253,13 @@ export function BirthForm({ id, onSubmit, pending }: BirthFormProps) {
         important_death: values.importantDeath.trim() || undefined,
         living_situation:
           values.livesAlone === 'yes'
-            ? 'Mora sozinho(a)'
+            ? 'alone'
             : values.livesAlone === 'no'
-              ? 'Nao mora sozinho(a)'
+              ? values.relationshipStatus === 'married' ||
+                values.relationshipStatus === 'dating' ||
+                values.relationshipStatus === 'engaged'
+                ? 'with_partner'
+                : 'with_family'
               : undefined,
       },
       related_people: values.relatedPeople
